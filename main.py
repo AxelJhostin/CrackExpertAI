@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.archive import archive_previous_run  # noqa: E402
 from src.data_loader import prepare_data  # noqa: E402
 from src.evaluate import evaluate_all  # noqa: E402
 from src.train import train_all  # noqa: E402
@@ -23,6 +24,9 @@ def main() -> None:
     print("=" * 72)
     print("CrackExpert AI — pipeline de entrenamiento y evaluación")
     print("=" * 72)
+
+    print("\n[0/4] Archivar figuras y métricas de la corrida anterior (si existen)")
+    archived = archive_previous_run()
 
     print("\n[1/4] Descarga, submuestreo balanceado (8.000 imgs) y partición estratificada")
     datasets = prepare_data(force_rebuild=False)
@@ -40,10 +44,12 @@ def main() -> None:
 
     print("\n" + "=" * 72)
     print("Pipeline finalizado.")
-    print(f"Comparación: {csv_path}")
-    print("Figuras: reports/figures/")
-    print("Bitácora: reports/experiments_log.md")
-    print("Casos reales: reports/external_test_comparison.csv")
+    print(f"Comparación vigente: {csv_path}")
+    print("Figuras vigentes: reports/figures/")
+    if archived is not None:
+        print(f"Histórico de la corrida anterior: {archived}")
+    print("Bitácora acumulativa: reports/experiments_log.md")
+    print("Casos reales (acumulativo): reports/external_test_comparison.csv")
     print("=" * 72)
 
 

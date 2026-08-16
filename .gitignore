@@ -1,0 +1,29 @@
+# Entornos y secretos
+.venv/
+venv/
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Datasets (no versionar imágenes)
+data/raw/**
+!data/raw/.gitkeep
+data/processed/**
+!data/processed/.gitkeep
+
+# Pesos de modelos (sí se versionan metadatos)
+models/*.keras
+models/*.h5
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.pkl
+
+# Sistema
+.DS_Store
+Thumbs.db

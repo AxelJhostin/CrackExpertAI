@@ -1,0 +1,27 @@
+{
+  "metadatos_inspeccion": {
+    "timestamp": "2026-08-16T09:15:00Z",
+    "elemento_estructural": "Viga",
+    "ambiente_exposicion": "Marino/Costero",
+    "ancho_estimado_mm": 0.45,
+    "patron_orientacion": "Diagonal (~45° en apoyos)"
+  },
+  "inferencia_vision": {
+    "modelo_utilizado": "mobilenet_v2.keras",
+    "clase_detectada": "Positive",
+    "probabilidad_fisura": 0.9842,
+    "latencia_ms": 11.2
+  },
+  "dictamen_sistema_experto": {
+    "nivel_severidad": "CRÍTICA",
+    "factor_certeza_global": 0.935,
+    "mecanismo_falla": "Esfuerzo Cortante / Tensión Diagonal",
+    "norma_referencia": "ACI 224R-01 Tabla 4.1 / NEC-SE-HM",
+    "protocolo_accion": [
+      "Alerta de seguridad estructural inmediata.",
+      "Apuntalamiento provisional del vano adyacente al apoyo.",
+      "Inspección urgente por ingeniero calculista colegiado.",
+      "Ensayos no destructivos (Esclerometría / Ultrasonido) para descartar delaminación interna."
+    ]
+  }
+}

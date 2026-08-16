@@ -1,8 +1,7 @@
-"""Motor de reglas de patología estructural en hormigón (ACI 224R / ACI 318 / NEC-SE-HM).
+"""Motor de inferencia patológica (ACI 224R / ACI 318 / NEC-SE-HM) con CF MYCIN.
 
-El clasificador visual estima la presencia de fisura. Este módulo traduce
-medidas (ancho, patrón, exposición) a un dictamen de servicio y urgencia,
-sin sustituir un peritaje estructural in situ.
+Combina P(fisura) de la CNN con variables de campo: elemento, ambiente,
+ancho (mm) y patrón/orientación visual. No sustituye un peritaje in situ.
 """
 
 from __future__ import annotations
@@ -11,22 +10,59 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 
-class Severity(str, Enum):
-    NONE = "sin_fisura"
-    AESTHETIC = "estetica"
-    SERVICEABILITY = "servicio"
-    STRUCTURAL = "estructural"
-    CRITICAL = "critica"
+class ReportSeverity(str, Enum):
+    NONE = "Sin fisura"
+    LEVE = "Leve"
+    MODERADA = "Moderada"
+    CRITICA = "Crítica"
 
 
-class Pattern(str, Enum):
-    UNKNOWN = "desconocido"
-    FLEXURAL = "flexion"
-    SHEAR = "cortante"
-    MAP = "mapa"
-    CORROSION = "corrosion"
-    SETTLEMENT = "asentamiento"
-    THERMAL = "termica"
+class ElementType(str, Enum):
+    VIGA = "Viga"
+    COLUMNA = "Columna"
+    LOSA = "Losa"
+    MURO = "Muro"
+
+
+class Exposure(str, Enum):
+    INTERIOR_SECO = "Interior seco"
+    EXTERIOR_HUMEDO = "Exterior húmedo"
+    MARINO = "Marino / agresivo"
+
+
+class PatronOrientacion(str, Enum):
+    """Variable de campo `patron_orientacion` (observación visual)."""
+
+    DIAGONAL_APOYOS = "Diagonal (~45° en apoyos)"
+    VERTICAL_COLUMNA = "Vertical (paralela al eje en columna)"
+    VERTICAL_VANO = "Vertical / Perpendicular (centro de vano en viga)"
+    HORIZONTAL_COLUMNA = "Horizontal transversal (en columna)"
+    HELICOIDAL = "Helicoidal / Espiral (45°)"
+    MALLA = "Malla / Piel de cocodrilo"
+    LONGITUDINAL_REFUERZO = "Longitudinal paralela al refuerzo"
+
+
+ELEMENT_OPTIONS: tuple[str, ...] = tuple(e.value for e in ElementType)
+EXPOSURE_OPTIONS: tuple[str, ...] = tuple(e.value for e in Exposure)
+PATRON_ORIENTACION_OPTIONS: tuple[str, ...] = tuple(p.value for p in PatronOrientacion)
+
+ML_CRACK_THRESHOLD: float = 0.50
+GROSS_WIDTH_MM: float = 1.0
+CF_PATTERN_OBS: float = 0.85
+CF_FACT_DECLARED: float = 1.0
+
+ACI_224R_LIMITS_MM: dict[Exposure, float] = {
+    Exposure.INTERIOR_SECO: 0.41,
+    Exposure.EXTERIOR_HUMEDO: 0.30,
+    Exposure.MARINO: 0.15,
+}
+
+_SEVERITY_RANK: dict[ReportSeverity, int] = {
+    ReportSeverity.NONE: 0,
+    ReportSeverity.LEVE: 1,
+    ReportSeverity.MODERADA: 2,
+    ReportSeverity.CRITICA: 3,
+}
 
 
 @dataclass(frozen=True)
@@ -34,148 +70,576 @@ class CrackObservation:
     """Entrada al sistema experto (unidades SI: mm)."""
 
     ml_probability: float
-    width_mm: float | None = None
-    length_mm: float | None = None
-    pattern: Pattern = Pattern.UNKNOWN
-    wet_environment: bool = False
-    deicing_salts: bool = False
-    seawater: bool = False
-    water_retaining: bool = False
+    elemento: ElementType = ElementType.VIGA
+    ambiente: Exposure = Exposure.INTERIOR_SECO
+    ancho_mm: float | None = None
+    patron_orientacion: PatronOrientacion = PatronOrientacion.VERTICAL_VANO
+    calidad_ancho: float = 1.0
     through_crack: bool = False
     rust_stains: bool = False
     spalling: bool = False
 
 
 @dataclass
+class FiredRule:
+    code: str
+    statement: str
+    cf_base: float
+    cf_premises: float
+    cf_contrib: float
+    severity: ReportSeverity
+    mechanism: str
+    normative_basis: str
+    actions: list[str]
+
+
+@dataclass
 class ExpertVerdict:
-    """Salida trazable: reglas disparadas + dictamen."""
+    """Dictamen completo para la interfaz y la bitácora."""
 
     has_crack: bool
-    severity: Severity
+    severity: ReportSeverity
+    cf_combined: float
+    mechanism: str
+    normative_basis: str
+    action_plan: list[str]
     max_allowed_width_mm: float
-    actions: list[str]
-    fired_rules: list[str] = field(default_factory=list)
+    fired_rules: list[FiredRule] = field(default_factory=list)
     notes: str = ""
 
 
-# ACI 224R-01 Table 4.1 — anchos máximos de fisura (mm) según exposición.
-ACI_224R_LIMITS_MM: dict[str, float] = {
-    "dry_air": 0.41,
-    "humidity_moist_soil": 0.30,
-    "deicing": 0.18,
-    "seawater": 0.15,
-    "water_retaining": 0.10,
-}
-
-# Umbral operativo de detección visual (probabilidad sigmoid).
-ML_CRACK_THRESHOLD: float = 0.50
-_SEVERITY_RANK: dict[Severity, int] = {s: i for i, s in enumerate(Severity)}
+def cf_from_ml(probability: float) -> float:
+    """Mapea P∈[0,1] a CF∈[-1,1]: P=0 → -1, P=0.5 → 0, P=1 → +1."""
+    return max(-1.0, min(1.0, 2.0 * float(probability) - 1.0))
 
 
-def _raise_severity(current: Severity, candidate: Severity) -> Severity:
-    return candidate if _SEVERITY_RANK[candidate] > _SEVERITY_RANK[current] else current
+def combine_cf(cf1: float, cf2: float) -> float:
+    """Combinación MYCIN de dos factores de certeza sobre la misma hipótesis."""
+    if cf1 >= 0.0 and cf2 >= 0.0:
+        return cf1 + cf2 * (1.0 - cf1)
+    if cf1 < 0.0 and cf2 < 0.0:
+        return cf1 + cf2 * (1.0 + cf1)
+    denom = 1.0 - min(abs(cf1), abs(cf2))
+    if denom <= 1e-12:
+        return 0.0
+    return (cf1 + cf2) / denom
 
 
-def aci_224r_width_limit(obs: CrackObservation) -> float:
-    """Selecciona el límite de ancho de fisura según exposición (ACI 224R / NEC-SE-HM)."""
-    if obs.water_retaining:
-        return ACI_224R_LIMITS_MM["water_retaining"]
-    if obs.seawater:
-        return ACI_224R_LIMITS_MM["seawater"]
-    if obs.deicing_salts:
-        return ACI_224R_LIMITS_MM["deicing"]
-    if obs.wet_environment:
-        return ACI_224R_LIMITS_MM["humidity_moist_soil"]
-    return ACI_224R_LIMITS_MM["dry_air"]
+def combine_cf_list(values: list[float]) -> float:
+    acc = 0.0
+    for value in values:
+        acc = combine_cf(acc, value)
+    return acc
+
+
+def wmax_mm(ambiente: Exposure) -> float:
+    return ACI_224R_LIMITS_MM[ambiente]
+
+
+def _coherence(patron: PatronOrientacion, elemento: ElementType) -> float:
+    """Atenúa el CF si el patrón es poco coherente con el tipo de elemento."""
+    preferred: dict[PatronOrientacion, tuple[ElementType, ...]] = {
+        PatronOrientacion.DIAGONAL_APOYOS: (ElementType.VIGA, ElementType.LOSA, ElementType.MURO),
+        PatronOrientacion.VERTICAL_COLUMNA: (ElementType.COLUMNA, ElementType.MURO),
+        PatronOrientacion.VERTICAL_VANO: (ElementType.VIGA, ElementType.LOSA),
+        PatronOrientacion.HORIZONTAL_COLUMNA: (ElementType.COLUMNA,),
+        PatronOrientacion.HELICOIDAL: (ElementType.VIGA, ElementType.COLUMNA),
+        PatronOrientacion.MALLA: tuple(ElementType),
+        PatronOrientacion.LONGITUDINAL_REFUERZO: tuple(ElementType),
+    }
+    return 1.0 if elemento in preferred[patron] else 0.55
+
+
+def _emit(
+    code: str,
+    statement: str,
+    cf_base: float,
+    premises: list[float],
+    severity: ReportSeverity,
+    mechanism: str,
+    normative_basis: str,
+    actions: list[str],
+) -> FiredRule:
+    cf_prem = min(premises) if premises else 1.0
+    cf_prem = max(0.0, cf_prem)
+    return FiredRule(
+        code=code,
+        statement=statement,
+        cf_base=cf_base,
+        cf_premises=cf_prem,
+        cf_contrib=cf_base * cf_prem,
+        severity=severity,
+        mechanism=mechanism,
+        normative_basis=normative_basis,
+        actions=actions,
+    )
+
+
+def _parse_enum(enum_cls: type[Enum], value: str | Enum) -> Enum:
+    if isinstance(value, enum_cls):
+        return value
+    for member in enum_cls:
+        if member.value == value or member.name == value:
+            return member
+    raise ValueError(f"Valor no reconocido para {enum_cls.__name__}: {value!r}")
+
+
+def observation_from_form(
+    ml_probability: float,
+    *,
+    elemento: str,
+    ambiente: str,
+    patron_orientacion: str,
+    ancho_mm: float | None,
+    calidad_ancho: float = 1.0,
+    through_crack: bool = False,
+    rust_stains: bool = False,
+    spalling: bool = False,
+) -> CrackObservation:
+    return CrackObservation(
+        ml_probability=float(ml_probability),
+        elemento=_parse_enum(ElementType, elemento),  # type: ignore[arg-type]
+        ambiente=_parse_enum(Exposure, ambiente),  # type: ignore[arg-type]
+        patron_orientacion=_parse_enum(PatronOrientacion, patron_orientacion),  # type: ignore[arg-type]
+        ancho_mm=ancho_mm,
+        calidad_ancho=max(0.0, min(1.0, calidad_ancho)),
+        through_crack=through_crack,
+        rust_stains=rust_stains,
+        spalling=spalling,
+    )
 
 
 def evaluate_pathology(obs: CrackObservation) -> ExpertVerdict:
-    """Aplica reglas deterministas sobre la observación + score del modelo.
+    """Encadenamiento hacia adelante: P_ML × elemento × ambiente × ancho × patrón."""
+    limit = wmax_mm(obs.ambiente)
+    cf_p = cf_from_ml(obs.ml_probability)
+    cf_el = CF_FACT_DECLARED
+    cf_amb = CF_FACT_DECLARED
+    cf_pat = CF_PATTERN_OBS * _coherence(obs.patron_orientacion, obs.elemento)
+    cf_w = float(obs.calidad_ancho) if obs.ancho_mm is not None else 0.0
+    fired: list[FiredRule] = []
 
-    Orden de precedencia: indicios de fallo estructural > corrosión/desprendimiento
-    > incumplimiento de ancho ACI > patrón de cortante > fisura estética.
-    """
-    fired: list[str] = []
-    actions: list[str] = []
-    limit = aci_224r_width_limit(obs)
-    has_crack = obs.ml_probability >= ML_CRACK_THRESHOLD
-
-    if not has_crack:
-        fired.append("R0: P(fisura) < 0.50 → elemento visualmente sano para el detector.")
+    if obs.ml_probability < ML_CRACK_THRESHOLD:
+        rule = _emit(
+            "R0",
+            f"SI P={obs.ml_probability:.3f} < 0.50 ENTONCES sin fisura detectable.",
+            0.80,
+            [max(0.0, -cf_p)],
+            ReportSeverity.NONE,
+            "Sin mecanismo patológico atribuible (percepción negativa).",
+            "El dictamen normativo de ACI 224R/318 no se activa sin evidencia visual de fisura.",
+            ["Mantener inspección rutinaria según el plan de mantenimiento."],
+        )
+        fired.append(rule)
         return ExpertVerdict(
             has_crack=False,
-            severity=Severity.NONE,
+            severity=ReportSeverity.NONE,
+            cf_combined=round(rule.cf_contrib, 4),
+            mechanism=rule.mechanism,
+            normative_basis=rule.normative_basis,
+            action_plan=rule.actions,
             max_allowed_width_mm=limit,
-            actions=["Mantener inspección rutinaria según plan de mantenimiento."],
             fired_rules=fired,
-            notes="El sistema experto no evalúa ancho si el clasificador no detecta fisura.",
+            notes="El motor experto no interpreta ancho ni patrón si la CNN no detecta fisura.",
         )
 
-    fired.append(f"R1: P(fisura)={obs.ml_probability:.3f} ≥ 0.50 → fisura detectada.")
-    severity = Severity.AESTHETIC
+    # --- Percepción ---
+    fired.append(
+        _emit(
+            "R1",
+            f"SI P={obs.ml_probability:.3f} ≥ 0.50 ENTONCES fisura presente (Leve inicial).",
+            0.90,
+            [max(0.0, cf_p)],
+            ReportSeverity.LEVE,
+            "Fisura superficial detectada por visión (CNN); mecanismo aún no especializado.",
+            "Capa de percepción; la interpretación estructural se rige por ACI 224R-01, ACI 318 y NEC-SE-HM.",
+            ["Fotografiar con escala y registrar localización en el elemento."],
+        )
+    )
 
-    if obs.pattern == Pattern.SHEAR:
-        severity = Severity.STRUCTURAL
-        fired.append("R2 (ACI 318 / NEC-SE-HM): patrón de cortante → posible mecanismo frágil.")
-        actions.append("Restringir cargas; evaluación estructural inmediata por profesional calificado.")
+    # --- Ancho / exposición (ACI 224R Tabla 4.1) ---
+    fired.append(
+        _emit(
+            "R6",
+            f"SI ambiente={obs.ambiente.value} ENTONCES w_max={limit:.2f} mm (ACI 224R Tabla 4.1).",
+            1.00,
+            [cf_amb],
+            ReportSeverity.LEVE,
+            "Límite de servicio por exposición (durabilidad / apariencia).",
+            "ACI 224R-01 Tabla 4.1; NEC-SE-HM (durabilidad y recubrimiento según exposición).",
+            [],
+        )
+    )
 
-    if obs.pattern == Pattern.CORROSION or obs.rust_stains:
-        severity = _raise_severity(severity, Severity.SERVICEABILITY)
-        fired.append("R3: indicios de corrosión de armadura (manchas / patrón paralelo a barras).")
-        actions.append("Verificar recubrimiento, carbonatación y cloruros; considerar rehabilitación.")
+    if obs.ancho_mm is None:
+        fired.append(
+            _emit(
+                "R6b",
+                "SI P≥0.50 Y ancho desconocido ENTONCES evidencia incompleta (Leve, no contrastado).",
+                0.55,
+                [max(0.0, cf_p)],
+                ReportSeverity.LEVE,
+                "Mecanismo no contrastado: falta medición de ancho.",
+                "ACI 224R-01 requiere ancho máximo para juzgar el estado límite de servicio.",
+                ["Medir ancho máximo con fisurómetro y reejecutar el motor."],
+            )
+        )
+    else:
+        w = float(obs.ancho_mm)
+        if limit < w < GROSS_WIDTH_MM:
+            fired.append(
+                _emit(
+                    "R7",
+                    f"SI w={w:.2f} mm > w_max={limit:.2f} mm ENTONCES Moderada (servicio/durabilidad).",
+                    0.85,
+                    [max(0.0, cf_p), cf_w, cf_amb],
+                    ReportSeverity.MODERADA,
+                    "Incumplimiento del ancho de servicio; riesgo de ingreso de agentes agresivos.",
+                    "ACI 224R-01 Tabla 4.1; NEC-SE-HM (estado límite de servicio y durabilidad).",
+                    [
+                        "Colocar testigos de evolución y sellar con material elástico compatible.",
+                        "Revisar recubrimiento, flecha y humedad en el elemento.",
+                    ],
+                )
+            )
+        if w >= GROSS_WIDTH_MM:
+            fired.append(
+                _emit(
+                    "R8",
+                    f"SI w={w:.2f} mm ≥ 1.0 mm ENTONCES Crítica (fisura grosera).",
+                    0.88,
+                    [max(0.0, cf_p), cf_w],
+                    ReportSeverity.CRITICA,
+                    "Fisura grosera: posible pérdida de sección, corrosión avanzada o mecanismo no flexional.",
+                    "ACI 224R-01 (anchos groseros fuera de servicio); ACI 318 / NEC-SE-HM (alerta de integridad).",
+                    [
+                        "Delimitar la zona y restringir uso según el ingeniero responsable.",
+                        "Solicitar evaluación estructural formal (no basta el sellado).",
+                    ],
+                )
+            )
+        if obs.ambiente == Exposure.MARINO and w <= limit:
+            fired.append(
+                _emit(
+                    "R10",
+                    "SI ambiente marino/agresivo Y w ≤ w_max ENTONCES Moderada (cloruros), no meramente estética.",
+                    0.70,
+                    [max(0.0, cf_p), cf_w, cf_amb],
+                    ReportSeverity.MODERADA,
+                    "Durabilidad en exposición a cloruros aun con ancho 'tolerable' de flexión.",
+                    "NEC-SE-HM (exposición agresiva / recubrimiento); ACI 224R-01 (agua de mar 0.15 mm).",
+                    [
+                        "Verificar recubrimiento y manchas de óxido.",
+                        "Considerar protección superficial según NEC-SE-HM.",
+                    ],
+                )
+            )
 
     if obs.spalling:
-        severity = Severity.STRUCTURAL
-        fired.append("R4: desprendimiento (spalling) → pérdida de sección o recubrimiento.")
-        actions.append("Delimitar zona afectada y programar reparación del recubrimiento.")
+        fired.append(
+            _emit(
+                "R4",
+                "SI hay desprendimiento (spalling) ENTONCES Crítica.",
+                0.90,
+                [max(0.0, cf_p)],
+                ReportSeverity.CRITICA,
+                "Pérdida de recubrimiento y posible reducción de sección de hormigón/acero.",
+                "ACI 318 (integridad de la sección); NEC-SE-HM (reparación de recubrimiento).",
+                ["Delimitar el área y reparar recubrimiento; evaluar sección residual."],
+            )
+        )
+    if obs.through_crack and obs.elemento in {ElementType.LOSA, ElementType.MURO}:
+        fired.append(
+            _emit(
+                "R5",
+                "SI fisura pasante en losa/muro ENTONCES al menos Moderada (filtración).",
+                0.78,
+                [max(0.0, cf_p), cf_el],
+                ReportSeverity.MODERADA,
+                "Fisura pasante: camino de filtración y lixiviación.",
+                "ACI 224R-01 (fisuras en elementos retenedores / exposición húmeda); NEC-SE-HM.",
+                ["Sellar, revisar impermeabilización y controlar filtraciones."],
+            )
+        )
+    if obs.rust_stains:
+        fired.append(
+            _emit(
+                "R3b",
+                "SI hay manchas de óxido ENTONCES Moderada (corrosión visible).",
+                0.80,
+                [max(0.0, cf_p)],
+                ReportSeverity.MODERADA,
+                "Indicio de corrosión de armadura (despasivación).",
+                "ACI 224R / ACI 318 (fisuración asociada a corrosión); NEC-SE-HM (durabilidad).",
+                ["Ensayos de carbonatación, cloruros y recubrimiento; rehabilitar recubrimiento."],
+            )
+        )
 
-    if obs.through_crack:
-        severity = _raise_severity(severity, Severity.SERVICEABILITY)
-        fired.append("R5: fisura pasante — riesgo de filtración y durabilidad.")
-        actions.append("Sellar fisura y revisar impermeabilización.")
+    # --- Patrón / orientación (variable patron_orientacion) ---
+    fired.extend(_rules_patron(obs, cf_p, cf_el, cf_amb, cf_pat, cf_w, limit))
 
-    if obs.width_mm is not None:
-        fired.append(f"R6: ancho medido={obs.width_mm:.2f} mm; límite ACI 224R={limit:.2f} mm.")
-        if obs.width_mm > limit:
-            severity = _raise_severity(severity, Severity.SERVICEABILITY)
-            fired.append("R7: ancho supera el límite de servicio de ACI 224R / NEC-SE-HM.")
-            actions.append("Cuantificar evolución (testigos) y sellar; revisar flechas y recubrimiento.")
-        if obs.width_mm >= 1.0:
-            severity = Severity.CRITICAL
-            fired.append("R8: ancho ≥ 1.0 mm → fisura grosera; posible compromiso de integridad.")
-            actions.append("Evacuar/apuntar según criterio del ingeniero responsable.")
-    else:
-        fired.append("R6b: sin medición de ancho; dictamen limitado a patrón y probabilidad ML.")
-        actions.append("Medir ancho máximo (fisurómetro) para contrastar con ACI 224R Tabla 4.1.")
+    winner = max(fired, key=lambda r: (_SEVERITY_RANK[r.severity], r.cf_contrib))
+    supporting = [r.cf_contrib for r in fired if r.severity == winner.severity and r.cf_contrib > 0]
+    cf_comb = combine_cf_list(supporting) if supporting else winner.cf_contrib
 
-    if obs.pattern == Pattern.MAP:
-        fired.append("R9: fisuración en mapa — típica de retracción / álcali-agregado; no es cortante.")
-        actions.append("Controlar humedad y evaluar potencial de RAS si hay expansión.")
-
+    mechanisms = [r.mechanism for r in fired if r.severity == winner.severity and r.code not in {"R1", "R6"}]
+    mechanism = mechanisms[-1] if mechanisms else winner.mechanism
+    norms = list(dict.fromkeys(r.normative_basis for r in fired if r.normative_basis))
+    actions: list[str] = []
+    for rank in (ReportSeverity.CRITICA, ReportSeverity.MODERADA, ReportSeverity.LEVE):
+        for rule in fired:
+            if rule.severity == rank:
+                for action in rule.actions:
+                    if action not in actions:
+                        actions.append(action)
     if not actions:
         actions.append("Registrar fisura, fotografiar con escala y reevaluar en la próxima inspección.")
 
-    unique_actions = list(dict.fromkeys(actions))
     return ExpertVerdict(
         has_crack=True,
-        severity=severity,
+        severity=winner.severity,
+        cf_combined=round(float(cf_comb), 4),
+        mechanism=mechanism,
+        normative_basis=" | ".join(norms),
+        action_plan=actions,
         max_allowed_width_mm=limit,
-        actions=unique_actions,
         fired_rules=fired,
         notes=(
-            "Referencias: ACI 224R-01 (control of cracking), ACI 318 (mecanismos de fallo), "
-            "NEC-SE-HM (hormigón armado, Ecuador) para límites de servicio y durabilidad."
+            "Dictamen de apoyo a la decisión. No calcula capacidad residual φVn ni sustituye "
+            "al ingeniero civil responsable. CF combinado estilo MYCIN sobre la hipótesis de severidad ganadora."
         ),
     )
 
 
+def _rules_patron(
+    obs: CrackObservation,
+    cf_p: float,
+    cf_el: float,
+    cf_amb: float,
+    cf_pat: float,
+    cf_w: float,
+    limit: float,
+) -> list[FiredRule]:
+    p = obs.patron_orientacion
+    e = obs.elemento
+    a = obs.ambiente
+    w = obs.ancho_mm
+    prem_pat = [max(0.0, cf_p), cf_pat, cf_el]
+    rules: list[FiredRule] = []
+
+    if p == PatronOrientacion.DIAGONAL_APOYOS:
+        sev = ReportSeverity.CRITICA
+        rules.append(
+            _emit(
+                "R-P1",
+                "SI patrón=Diagonal ~45° en apoyos ENTONCES Cortante / tensión diagonal → Crítica.",
+                0.92,
+                prem_pat,
+                sev,
+                "Cortante / tensión diagonal (fisuración inclinada en zona de apoyos o alma).",
+                "ACI 318 (cortante en vigas, fisuras a ~45°); NEC-SE-HM (resistencia a cortante y estribos).",
+                [
+                    "Restringir cargas; evaluación estructural inmediata.",
+                    "Revisar estribos, nudos y posible punzonamiento; no usar el sellado como única medida.",
+                ],
+            )
+        )
+        if e == ElementType.VIGA:
+            rules.append(
+                _emit(
+                    "R-P1b",
+                    "SI elemento=Viga Y patrón diagonal en apoyos ENTONCES alma a cortante (ACI 318).",
+                    0.93,
+                    prem_pat,
+                    ReportSeverity.CRITICA,
+                    "Cortante en viga: mecanismo potencialmente frágil.",
+                    "ACI 318 / NEC-SE-HM: verificar Vc, estribos y anclaje en apoyos.",
+                    ["Inspeccionar alma, apoyos y nudos viga-columna."],
+                )
+            )
+
+    elif p == PatronOrientacion.VERTICAL_COLUMNA:
+        sev = ReportSeverity.MODERADA
+        if w is not None and w >= 0.50:
+            sev = ReportSeverity.CRITICA if w >= GROSS_WIDTH_MM else ReportSeverity.MODERADA
+        rules.append(
+            _emit(
+                "R-P2",
+                "SI patrón=Vertical paralela al eje en columna ENTONCES compresión / aplastamiento.",
+                0.86,
+                prem_pat + ([cf_w] if w is not None else []),
+                sev,
+                "Compresión pura / aplastamiento (hendimiento paralelo a la carga axial).",
+                "ACI 318 (columnas a compresión, fisuración vertical); NEC-SE-HM (elementos a compresión).",
+                [
+                    "Revisar carga axial, esbeltez y confinamiento; no atribuir automáticamente a retracción.",
+                    "Si hay desprendimiento o w≥1 mm, restringir uso y evaluar sección.",
+                ],
+            )
+        )
+
+    elif p == PatronOrientacion.VERTICAL_VANO:
+        sev = ReportSeverity.LEVE
+        if w is not None and w > limit:
+            sev = ReportSeverity.MODERADA
+        if w is not None and w >= GROSS_WIDTH_MM:
+            sev = ReportSeverity.CRITICA
+        if a == Exposure.MARINO and sev == ReportSeverity.LEVE:
+            sev = ReportSeverity.MODERADA
+        rules.append(
+            _emit(
+                "R-P3",
+                "SI patrón=Vertical/perpendicular en centro de vano ENTONCES flexión pura.",
+                0.88,
+                prem_pat,
+                sev,
+                "Flexión pura (fisuras perpendiculares al acero de tracción en zona de momento máximo).",
+                "ACI 318 (fisuración por flexión); ACI 224R-01 Tabla 4.1 (ancho de servicio); NEC-SE-HM.",
+                [
+                    "Contrastar w con w_max de exposición; sellar fisuras de flexión si el elemento es estable.",
+                    "Controlar flecha y cuantía de tracción.",
+                ],
+            )
+        )
+
+    elif p == PatronOrientacion.HORIZONTAL_COLUMNA:
+        rules.append(
+            _emit(
+                "R-P4",
+                "SI patrón=Horizontal transversal en columna ENTONCES flexo-tracción sísmica / viento → Crítica.",
+                0.90,
+                prem_pat,
+                ReportSeverity.CRITICA,
+                "Flexo-tracción por sismo o viento (fisuras horizontales por momento flector en columna).",
+                "ACI 318 (columnas a flexocompresión, nudos); NEC-SE-HM y NEC-SE-DS (demanda sísmica).",
+                [
+                    "Evaluación sísmica/estructural urgente del pórtico.",
+                    "Revisar nudos, estribos de confinamiento y posible rótula plástica.",
+                ],
+            )
+        )
+
+    elif p == PatronOrientacion.HELICOIDAL:
+        rules.append(
+            _emit(
+                "R-P5",
+                "SI patrón=Helicoidal/espiral 45° ENTONCES falla por torsión → Crítica.",
+                0.91,
+                prem_pat,
+                ReportSeverity.CRITICA,
+                "Falla por torsión (fisuración helicoidal a ~45°).",
+                "ACI 318 (torsión, estribos cerrados y refuerzo longitudinal extra); NEC-SE-HM.",
+                [
+                    "Restringir cargas de torsión (voladizos, excentricidades).",
+                    "Verificar estribos cerrados y continuidad del refuerzo; evaluación formal.",
+                ],
+            )
+        )
+
+    elif p == PatronOrientacion.MALLA:
+        sev = ReportSeverity.LEVE
+        if a != Exposure.INTERIOR_SECO:
+            sev = ReportSeverity.MODERADA
+        rules.append(
+            _emit(
+                "R-P6",
+                "SI patrón=Malla / piel de cocodrilo ENTONCES retracción plástica / curado deficiente.",
+                0.75,
+                prem_pat + [cf_amb],
+                sev,
+                "Retracción plástica / curado deficiente (no confundir con cortante).",
+                "ACI 224R-01 (fisuración por retracción y curado); NEC-SE-HM (curado y durabilidad).",
+                [
+                    "Controlar humedad y curado; sellar si hay riesgo de filtración.",
+                    "Evaluar RAS solo si hay expansión o gel; no tratar como cortante.",
+                ],
+            )
+        )
+
+    elif p == PatronOrientacion.LONGITUDINAL_REFUERZO:
+        sev = ReportSeverity.MODERADA
+        if a == Exposure.MARINO or obs.rust_stains or obs.spalling:
+            sev = ReportSeverity.CRITICA
+        if w is not None and w >= GROSS_WIDTH_MM:
+            sev = ReportSeverity.CRITICA
+        rules.append(
+            _emit(
+                "R-P7",
+                "SI patrón=Longitudinal paralela al refuerzo ENTONCES corrosión y despasivación.",
+                0.84,
+                prem_pat + [cf_amb],
+                sev,
+                "Corrosión y despasivación de armaduras (fisura siguiendo la barra).",
+                "ACI 224R / ACI 318 (fisuración por corrosión); NEC-SE-HM (recubrimiento y exposición a cloruros).",
+                [
+                    "Ensayos de carbonatación, cloruros y espesor de recubrimiento.",
+                    "Rehabilitar recubrimiento; protección catódica o inhibidores según el caso.",
+                ],
+            )
+        )
+
+    if e == ElementType.LOSA and a != Exposure.INTERIOR_SECO and w is not None and w > limit:
+        sev = ReportSeverity.CRITICA if a == Exposure.MARINO else ReportSeverity.MODERADA
+        rules.append(
+            _emit(
+                "R13",
+                "SI losa en ambiente no seco Y w>w_max ENTONCES servicio/filtración.",
+                0.80,
+                [max(0.0, cf_p), cf_el, cf_amb, cf_w],
+                sev,
+                "Flexión/servicio en losa con riesgo de filtración.",
+                "ACI 224R-01; NEC-SE-HM (losas y durabilidad).",
+                ["Impermeabilizar, controlar flecha y sellar fisuras de flexión."],
+            )
+        )
+
+    return rules
+
+
+def diagnose(
+    ml_probability: float,
+    *,
+    elemento: str,
+    ambiente: str,
+    patron_orientacion: str,
+    ancho_mm: float | None,
+    calidad_ancho: float = 1.0,
+    through_crack: bool = False,
+    rust_stains: bool = False,
+    spalling: bool = False,
+) -> ExpertVerdict:
+    """API de la interfaz: cadenas del formulario → dictamen."""
+    obs = observation_from_form(
+        ml_probability,
+        elemento=elemento,
+        ambiente=ambiente,
+        patron_orientacion=patron_orientacion,
+        ancho_mm=ancho_mm,
+        calidad_ancho=calidad_ancho,
+        through_crack=through_crack,
+        rust_stains=rust_stains,
+        spalling=spalling,
+    )
+    return evaluate_pathology(obs)
+
+
 def verdict_to_dict(verdict: ExpertVerdict) -> dict[str, object]:
-    """Serializa el dictamen para la bitácora o una API posterior."""
     return {
         "has_crack": verdict.has_crack,
         "severity": verdict.severity.value,
+        "cf_combined": verdict.cf_combined,
+        "mechanism": verdict.mechanism,
+        "normative_basis": verdict.normative_basis,
+        "action_plan": verdict.action_plan,
         "max_allowed_width_mm": verdict.max_allowed_width_mm,
-        "actions": verdict.actions,
-        "fired_rules": verdict.fired_rules,
+        "fired_rules": [
+            {
+                "code": r.code,
+                "statement": r.statement,
+                "cf_contrib": round(r.cf_contrib, 4),
+                "severity": r.severity.value,
+            }
+            for r in verdict.fired_rules
+        ],
         "notes": verdict.notes,
     }

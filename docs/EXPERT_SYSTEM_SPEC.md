@@ -40,16 +40,23 @@ La fisura es un camino de transporte de agentes agresivos. El motor experto **in
 - hay indicios de corrosión (manchas, fisuras paralelas a la armadura, desprendimiento);
 - la fisura es **pasante** (losa o muro): filtración y lixiviación.
 
-### 1.4. Mecanismos estructurales (ACI 318)
+### 1.4. Mecanismos estructurales según patrón u orientación visual
 
-| Patrón | Lectura normativa | Tratamiento en el SE |
+La variable de entrada **`patron_orientacion`** sustituye al patrón genérico previo. Cada opción de la interfaz se asocia a un mecanismo físico y a un fundamento normativo:
+
+| `patron_orientacion` (interfaz) | Mecanismo físico probable | Fundamento |
 | --- | --- | --- |
-| Flexión | Fisuras aproximadamente perpendiculares al acero de tracción, zona de momento positivo/negativo | Severidad gobernada principalmente por \(w\) vs \(w_{\max}\) |
-| Cortante | Fisuras inclinadas en almas de vigas o nudos; mecanismo potencialmente frágil | Escalado inmediato a **crítica / estructural**, con CF alto |
-| Mapa / caimán | Retracción, gradiente térmico o RAS | Durabilidad / material; no se confunde con cortante |
-| Corrosión | Fisuras siguiendo barras, manchas de óxido, recubrimiento suelto | Durabilidad elevada; estructural si hay *spalling* |
+| Diagonal (~45° en apoyos) | Cortante / tensión diagonal | ACI 318 (fisuración inclinada, \(V_c\)/estribos); NEC-SE-HM |
+| Vertical (paralela al eje en columna) | Compresión pura / aplastamiento | ACI 318 (columnas a compresión); NEC-SE-HM |
+| Vertical / Perpendicular (centro de vano en viga) | Flexión pura | ACI 318 (flexión); ACI 224R-01 Tabla 4.1 (ancho); NEC-SE-HM |
+| Horizontal transversal (en columna) | Flexo-tracción sísmica / viento | ACI 318 (flexocompresión, nudos); NEC-SE-HM / NEC-SE-DS |
+| Helicoidal / Espiral (45°) | Falla por torsión | ACI 318 (torsión, estribos cerrados); NEC-SE-HM |
+| Malla / Piel de cocodrilo | Retracción plástica / curado deficiente | ACI 224R-01 (retracción y curado); NEC-SE-HM |
+| Longitudinal paralela al refuerzo | Corrosión y despasivación de armaduras | ACI 224R / ACI 318 (corrosión); NEC-SE-HM (recubrimiento, cloruros) |
 
-**Descargo.** El sistema no calcula capacidad residual ni factores \(\phi\). Cualquier conclusión de “crítica / estructural” es una **alerta de protocolo**, no un certificado de inestabilidad.
+Si el patrón es **poco coherente** con el tipo de elemento (p. ej. “horizontal en columna” declarado sobre una losa), el CF de la observación de patrón se multiplica por **0,55**.
+
+**Descargo.** El sistema no calcula capacidad residual ni factores \(\phi\). “Crítica” es una **alerta de protocolo**, no un certificado de inestabilidad.
 
 ---
 
@@ -64,7 +71,7 @@ La fisura es un camino de transporte de agentes agresivos. El motor experto **in
 | \(E\) | Tipo de elemento | enumerado | Viga, Columna, Losa, Muro | Condiciona el peso de cortante, pandeo/hendimiento y filtración. |
 | \(A\) | Ambiente de exposición | enumerado | Interior seco; Exterior húmedo; Marino/agresivo | Selecciona \(w_{\max}\) según §1.2. |
 | \(Q_w\) | Calidad de la medición de ancho | continuo | \([0, 1]\) | 1,0 si hay lectura instrumental; 0,5 si es estimación visual; 0,0 si \(w\) es nulo. |
-| \(\pi\) | Patrón (opcional) | enumerado | desconocido, flexión, cortante, mapa, corrosión, asentamiento, térmica | Si el inspector no lo indica, las reglas de patrón no se disparan (salvo cortante explícito). |
+| \(\pi\) / `patron_orientacion` | Patrón u orientación visual | enumerado | ver §1.4 y §5.5 | Observación de campo obligatoria en la interfaz; mapea al mecanismo físico. |
 
 **Umbral de percepción.** Se considera evidencia positiva de fisura si \(P \geq 0{,}50\). El CF asociado a esa evidencia no es binario: se calcula como se indica en §4.3.
 
@@ -83,10 +90,12 @@ w_{\max}(A) =
 
 | Símbolo | Nombre | Dominio | Semántica |
 | --- | --- | --- | --- |
-| \(S\) | Nivel de severidad | Leve / estética; Moderada / durabilidad; Crítica / estructural | Hipótesis de mayor rango entre las reglas disparadas. |
-| \(\mathrm{CF}_{\mathrm{comb}}\) | Factor de certeza combinado | \([-1, 1]\) | Confianza neta en \(S\) tras MYCIN. |
-| \(M\) | Medidas de mitigación y reparación | lista de acciones | Plan priorizado, una o más por regla. |
-| \(\mathcal{R}\) | Trace | identificadores \(R_i\) | Explicabilidad: por qué se concluyó \(S\). |
+| \(S\) | Nivel de severidad | Sin fisura; **Leve**; **Moderada**; **Crítica** | Hipótesis de mayor rango entre las reglas disparadas. |
+| \(\mathrm{CF}_{\mathrm{comb}}\) | Factor de certeza combinado | \([-1, 1]\) | MYCIN sobre las reglas que votan por \(S\). |
+| Mecanismo | Mecanismo físico probable | texto | Derivado de `patron_orientacion` y reglas de ancho/exposición. |
+| Fundamento | Cita normativa | texto | ACI 224R-01, ACI 318, NEC-SE-HM (y NEC-SE-DS si aplica). |
+| \(M\) | Plan de acción técnico | lista | Mitigación y reparación priorizadas. |
+| \(\mathcal{R}\) | Trace | `R0`, `R1`, `R-P1`… | Explicabilidad. |
 
 **Correspondencia de severidad** (tres niveles de interfaz; el código puede conservar estados internos `NONE` y `CRITICAL` como extremos de “crítica”):
 
@@ -298,10 +307,57 @@ Las condiciones implícitas “hecho declarado” tienen \(\mathrm{CF}=1\) salvo
 **Acciones:** impermeabilización; control de flecha; sellado de fisuras de flexión.
 
 **R14 — Muro, mapa vs asentamiento**  
-**SI** \(P \geq 0{,}50\) **Y** \(E =\) Muro **Y** \(\pi =\) asentamiento  
-**ENTONCES** \(S \leftarrow\) al menos Moderada.  
-**CF base** = \(0{,}77\)  
-**Acciones:** topografía de fisuras (apertura y escalonamiento); geotecnia si hay desplazamiento relativo.
+**SI** \(P \geq 0{,}50\) **Y** \(E =\) Muro **Y** patrón de malla  
+**ENTONCES** \(S \leftarrow\) al menos Leve (húmedo: Moderada).  
+**CF base** = \(0{,}75\)  
+**Acciones:** las de R-P6.
+
+### 5.5. Reglas de `patron_orientacion` (R-P1 … R-P7)
+
+Todas exigen \(P \geq 0{,}50\). Premisas de patrón: \(\mathrm{CF}(\pi)=0{,}85 \times \text{coherencia}(E,\pi)\).
+
+**R-P1 — Diagonal (~45° en apoyos)**  
+**SI** patrón = Diagonal (~45° en apoyos)  
+**ENTONCES** mecanismo = Cortante / tensión diagonal; \(S \leftarrow\) **Crítica**.  
+**CF base** = \(0{,}92\) (R-P1b viga: \(0{,}93\))  
+**Norma:** ACI 318 (cortante, fisuras inclinadas); NEC-SE-HM.  
+**Acciones:** restringir cargas; revisar estribos y nudos; no sellar como única medida.
+
+**R-P2 — Vertical (paralela al eje en columna)**  
+**SI** patrón = Vertical (paralela al eje en columna)  
+**ENTONCES** mecanismo = Compresión pura / aplastamiento; \(S \leftarrow\) Moderada (Crítica si \(w \geq 1\,\mathrm{mm}\)).  
+**CF base** = \(0{,}86\)  
+**Norma:** ACI 318 (columnas a compresión); NEC-SE-HM.
+
+**R-P3 — Vertical / perpendicular (centro de vano en viga)**  
+**SI** patrón = Vertical / Perpendicular (centro de vano)  
+**ENTONCES** mecanismo = Flexión pura; \(S\) según \(w\) vs \(w_{\max}\) (Leve / Moderada / Crítica).  
+**CF base** = \(0{,}88\)  
+**Norma:** ACI 318 (flexión); ACI 224R-01 Tabla 4.1; NEC-SE-HM.
+
+**R-P4 — Horizontal transversal (en columna)**  
+**SI** patrón = Horizontal transversal (en columna)  
+**ENTONCES** mecanismo = Flexo-tracción sísmica / viento; \(S \leftarrow\) **Crítica**.  
+**CF base** = \(0{,}90\)  
+**Norma:** ACI 318 (flexocompresión, nudos); NEC-SE-HM / NEC-SE-DS.
+
+**R-P5 — Helicoidal / espiral (45°)**  
+**SI** patrón = Helicoidal / Espiral (45°)  
+**ENTONCES** mecanismo = Falla por torsión; \(S \leftarrow\) **Crítica**.  
+**CF base** = \(0{,}91\)  
+**Norma:** ACI 318 (torsión, estribos cerrados); NEC-SE-HM.
+
+**R-P6 — Malla / piel de cocodrilo**  
+**SI** patrón = Malla / Piel de cocodrilo  
+**ENTONCES** mecanismo = Retracción plástica / curado deficiente; \(S \leftarrow\) Leve (Moderada si ambiente ≠ interior seco).  
+**CF base** = \(0{,}75\)  
+**Norma:** ACI 224R-01; NEC-SE-HM. No clasificar como cortante.
+
+**R-P7 — Longitudinal paralela al refuerzo**  
+**SI** patrón = Longitudinal paralela al refuerzo  
+**ENTONCES** mecanismo = Corrosión y despasivación de armaduras; \(S \leftarrow\) Moderada (Crítica si marino, óxido, *spalling* o \(w \geq 1\,\mathrm{mm}\)).  
+**CF base** = \(0{,}84\)  
+**Norma:** ACI 224R / ACI 318; NEC-SE-HM (recubrimiento y cloruros).
 
 ---
 
@@ -332,9 +388,9 @@ Las acciones se **unen** (unión ordenada, sin duplicados) a partir de las regla
 
 | Concepto de esta especificación | Módulo |
 | --- | --- |
-| \(w_{\max}(A)\), R0–R9 | `src/expert_system.py` (`aci_224r_width_limit`, `evaluate_pathology`) |
-| \(P\) desde CNN | Inferencia del `.keras` seleccionado en `app.py` / pipeline de predicción |
-| CF MYCIN y R10–R14 | Motor de certeza documentado aquí; debe mantenerse alineado en `expert_system.py` |
+| \(w_{\max}(A)\), R0–R10, R-P1–R-P7, CF MYCIN | `src/expert_system.py` (`diagnose`, `evaluate_pathology`) |
+| Formulario de campo + `patron_orientacion` | `app.py` (Streamlit) |
+| \(P\) desde CNN | Inferencia del `.keras` seleccionado en `app.py` |
 | Benchmark visual (no normativo) | `src/train.py`, `src/evaluate.py` |
 
 **Principio de desacople:** modificar una regla ACI no requiere reentrenar la CNN; cambiar el backbone no modifica \(w_{\max}\).

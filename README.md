@@ -27,7 +27,7 @@ La inspección visual humana es costosa, subjetiva y difícil de estandarizar. U
 
 El modelo de visión **no sustituye** un peritaje estructural. El sistema experto **no inventa** anchos ni cargas: emite un dictamen de severidad, un factor de certeza combinado y un plan de acción, con las reglas disparadas a la vista del ingeniero.
 
-La especificación formal de la base de conocimiento está en [`docs/EXPERT_SYSTEM_SPEC.md`](docs/EXPERT_SYSTEM_SPEC.md).
+La memoria canónica del proyecto (propósito, rúbrica, estado y cómo retomar un chat) está en [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md). La especificación formal de la base de conocimiento está en [`docs/EXPERT_SYSTEM_SPEC.md`](docs/EXPERT_SYSTEM_SPEC.md).
 
 ---
 

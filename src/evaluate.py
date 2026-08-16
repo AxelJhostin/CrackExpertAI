@@ -21,7 +21,7 @@ from sklearn.metrics import (
 )
 from tensorflow import keras
 
-from src.data_loader import CLASS_NAMES, PROJECT_ROOT, iter_test_filepaths
+from src.data_loader import CLASS_NAMES, PROJECT_ROOT, SPLIT_COUNTS, N_PER_CLASS, N_TOTAL, iter_test_filepaths
 from src.models import ModelSpec
 from src.train import TrainResult
 
@@ -144,7 +144,7 @@ def plot_roc_comparison(
     ax.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Azar")
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
-    ax.set_title("Comparación ROC — conjunto de test (n=600)")
+    ax.set_title(f"Comparación ROC — conjunto de test (n={SPLIT_COUNTS['test']})")
     ax.legend(loc="lower right")
     ax.grid(alpha=0.3)
     fig.tight_layout()
@@ -324,8 +324,12 @@ def _write_experiments_log(results: list[TrainResult], rows: list[dict[str, obje
         "### Configuración",
         "",
         "- Dataset: `arunrk7/surface-crack-detection`",
-        "- Subconjunto: 4.000 imágenes (2.000 Positive / 2.000 Negative)",
-        "- Splits estratificados (`random_state=42`): train 2.800 / val 600 / test 600",
+        f"- Subconjunto: {N_TOTAL:,} imágenes ({N_PER_CLASS:,} Positive / {N_PER_CLASS:,} Negative)".replace(",", "."),
+        (
+            f"- Splits estratificados (`random_state=42`): "
+            f"train {SPLIT_COUNTS['train']:,} / val {SPLIT_COUNTS['val']:,} / "
+            f"test {SPLIT_COUNTS['test']:,}".replace(",", ".")
+        ),
         "- Input: 224×224 RGB, rango [0, 255]",
         "- Augmentation (solo train): RandomFlip, RandomRotation(0.1), RandomZoom(0.1), RandomBrightness(0.1)",
         "- Optimizador: Adam | Loss: binary_crossentropy",
@@ -333,7 +337,7 @@ def _write_experiments_log(results: list[TrainResult], rows: list[dict[str, obje
         "- Fase 2: LR=1e-5, fine-tuning (MobileNetV2: 25 capas; ResNet50V2/EfficientNet-B0: 20 capas)",
         "- EarlyStopping: monitor=val_loss, patience=5, restore_best_weights=True",
         "",
-        "### Métricas por modelo (test independiente n=600)",
+        f"### Métricas por modelo (test independiente n={SPLIT_COUNTS['test']})",
         "",
         "| " + " | ".join(CSV_COLUMNS) + " |",
         "| " + " | ".join("---" for _ in CSV_COLUMNS) + " |",

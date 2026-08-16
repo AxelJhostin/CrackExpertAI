@@ -1,7 +1,7 @@
 """Descarga, submuestreo balanceado, partición estratificada y tf.data.
 
 Dataset: arunrk7/surface-crack-detection (Positive / Negative).
-Subconjunto: 4.000 imágenes (2.000 por clase).
+Subconjunto: 8.000 imágenes (4.000 Positive / 4.000 Negative).
 Splits fijos (random_state=42): 70% train / 15% val / 15% test.
 Aumento de datos: exclusivamente en train.
 """
@@ -19,7 +19,9 @@ from sklearn.model_selection import train_test_split
 RANDOM_STATE: int = 42
 IMAGE_SIZE: tuple[int, int] = (224, 224)
 BATCH_SIZE: int = 32
-N_PER_CLASS: int = 2000
+N_PER_CLASS: int = 4000
+N_TOTAL: int = N_PER_CLASS * 2  # 8.000
+SPLIT_COUNTS: dict[str, int] = {"train": 5600, "val": 1200, "test": 1200}
 CLASS_NAMES: tuple[str, str] = ("Negative", "Positive")
 KAGGLE_DATASET: str = "arunrk7/surface-crack-detection"
 
@@ -67,7 +69,7 @@ def download_raw_dataset() -> Path:
 
 
 def _sample_balanced(positive: list[Path], negative: list[Path]) -> tuple[list[Path], list[int]]:
-    """Selecciona exactamente 2.000 Positive y 2.000 Negative con semilla fija."""
+    """Selecciona exactamente 4.000 Positive y 4.000 Negative con semilla fija."""
     rng = np.random.default_rng(RANDOM_STATE)
     if len(positive) < N_PER_CLASS or len(negative) < N_PER_CLASS:
         raise ValueError(
@@ -87,7 +89,7 @@ def _stratified_splits(
     paths: list[Path],
     labels: list[int],
 ) -> dict[str, tuple[list[Path], list[int]]]:
-    """70% train (2.800) / 15% val (600) / 15% test (600), estratificado."""
+    """70% train (5.600) / 15% val (1.200) / 15% test (1.200), estratificado."""
     paths_arr = np.array(paths, dtype=object)
     labels_arr = np.array(labels)
     x_tv, x_test, y_tv, y_test = train_test_split(
@@ -193,7 +195,7 @@ def prepare_data(*, force_rebuild: bool = False) -> dict[str, tf.data.Dataset]:
         Diccionario con claves train / val / test. Train incluye augmentation;
         val y test solo redimensionan a 224x224 RGB (rango [0, 255]).
     """
-    expected_counts = {"train": 2800, "val": 600, "test": 600}
+    expected_counts = SPLIT_COUNTS
     already_built = PROCESSED_DIR.exists() and all(
         sum(1 for _ in (PROCESSED_DIR / split / class_name).glob("*") if _.is_file())
         == (expected_counts[split] // 2)

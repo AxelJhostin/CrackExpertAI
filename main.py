@@ -24,20 +24,26 @@ def main() -> None:
     print("CrackExpert AI — pipeline de entrenamiento y evaluación")
     print("=" * 72)
 
-    print("\n[1/3] Descarga, submuestreo balanceado y partición estratificada")
+    print("\n[1/4] Descarga, submuestreo balanceado (8.000 imgs) y partición estratificada")
     datasets = prepare_data(force_rebuild=False)
 
-    print("\n[2/3] Entrenamiento de 4 arquitecturas (2 fases, EarlyStopping)")
+    print("\n[2/4] Entrenamiento de 4 arquitecturas (2 fases, EarlyStopping)")
     results = train_all(datasets)
 
-    print("\n[3/3] Evaluación en test retenido, figuras y bitácora")
+    print("\n[3/4] Evaluación en test retenido, figuras y bitácora")
     csv_path = evaluate_all(results, datasets)
+
+    print("\n[4/4] Reevaluación de casos reales en data/external_test/")
+    from test_external import main as run_external_test
+
+    run_external_test()
 
     print("\n" + "=" * 72)
     print("Pipeline finalizado.")
     print(f"Comparación: {csv_path}")
     print("Figuras: reports/figures/")
     print("Bitácora: reports/experiments_log.md")
+    print("Casos reales: reports/external_test_comparison.csv")
     print("=" * 72)
 
 

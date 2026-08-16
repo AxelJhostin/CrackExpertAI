@@ -145,6 +145,28 @@ El dataset de fisuras superficiales es **visualmente muy separable** (fisura osc
 
 ---
 
+## Prueba externa 01 — 16 de agosto de 2026
+
+**Comando:** `python test_external.py`  
+**Fotos:** 9 archivos `.jpeg` en `data/external_test/` (el script acepta `.jpeg`, `.jpg`, `.png`, `.webp`, `.bmp`).  
+**Tabla generada:** [`external_test_comparison.md`](external_test_comparison.md) · [`external_test_comparison.csv`](external_test_comparison.csv)
+
+| Archivo | CNN personalizada | MobileNetV2 | ResNet50V2 | EfficientNet-B0 | Consenso |
+| --- | --- | --- | --- | --- | --- |
+| 1.jpeg | FISURA 100.0% (P=1.000) | FISURA 99.2% (P=0.992) | FISURA 100.0% (P=1.000) | FISURA 100.0% (P=1.000) | FISURA (4/4) |
+| 2.jpeg | FISURA 93.1% (P=0.931) | FISURA 62.6% (P=0.626) | SANA 93.0% (P=0.070) | FISURA 99.9% (P=0.999) | DISCREPANCIA (3/4) |
+| 3.jpeg | FISURA 99.8% (P=0.998) | FISURA 98.8% (P=0.988) | FISURA 58.6% (P=0.586) | FISURA 100.0% (P=1.000) | FISURA (4/4) |
+| 4.jpeg | SANA 95.5% (P=0.045) | SANA 92.0% (P=0.080) | FISURA 61.2% (P=0.612) | FISURA 99.9% (P=0.999) | DISCREPANCIA (2/4) |
+| 5.jpeg | FISURA 81.8% (P=0.818) | SANA 94.2% (P=0.058) | SANA 88.5% (P=0.115) | SANA 91.2% (P=0.088) | DISCREPANCIA (1/4) |
+| 6.jpeg | SANA 97.7% (P=0.023) | SANA 98.7% (P=0.013) | SANA 99.9% (P=0.001) | SANA 97.9% (P=0.021) | SANA (4/4) |
+| 7.jpeg | FISURA 94.7% (P=0.947) | FISURA 96.8% (P=0.968) | SANA 98.7% (P=0.013) | FISURA 76.7% (P=0.767) | DISCREPANCIA (3/4) |
+| WhatsApp … 7.43.25 AM.jpeg | FISURA 87.7% (P=0.877) | FISURA 89.8% (P=0.898) | SANA 97.9% (P=0.021) | FISURA 92.8% (P=0.928) | DISCREPANCIA (3/4) |
+| WhatsApp … 7.43.28 AM.jpeg | FISURA 93.6% (P=0.936) | SANA 65.3% (P=0.347) | SANA 96.9% (P=0.031) | SANA 97.5% (P=0.025) | DISCREPANCIA (1/4) |
+
+**Lectura.** El test de Kaggle estaba saturado (F1≈1); en fotos reales hay **6/9 discrepancias**. ResNet50V2 tiende a negar fisura donde los demás coinciden (2, 7, WhatsApp 7.43.25). EfficientNet-B0 marca fisura en 4.jpeg con P≈1 mientras CNN y MobileNet la dan sana. La CNN custom es la más “positiva” (fisura en 7/9). El único consenso sano es **6.jpeg**. Esto sugiere que el modelo óptimo por latencia en el test interno **no** es automáticamente el más fiable en campo: conviene mirar el consenso y el sistema experto, no un solo backbone.
+
+---
+
 <!-- Plantilla para la siguiente corrida (copiar y rellenar):
 
 ## Corrida 02 — AAAA-MM-DD

@@ -103,7 +103,8 @@ crackexpert-ai/
 ├── reports/
 │   ├── figures/                  # Curvas, matrices, ROC, errores
 │   ├── models_comparison.csv     # Métricas cuantitativas del benchmark
-│   └── experiments_log.md        # Bitácora de corridas
+│   ├── experiments_log.md        # Bitácora de corridas
+│   └── TRAINING_RESULTS.md       # Informe acumulativo de entrenamientos
 ├── src/
 │   ├── __init__.py
 │   ├── data_loader.py            # kagglehub, muestreo 4k, splits, tf.data

@@ -110,6 +110,23 @@ def _is_loopback_host(hostname: str) -> bool:
     return hostname in {"localhost", "127.0.0.1", "::1", ""}
 
 
+def _looks_like_phone() -> bool:
+    try:
+        ua = (st.context.headers.get("User-Agent") or "").lower()
+    except Exception:
+        ua = ""
+    return any(token in ua for token in ("iphone", "android", "mobile", "ipad", "ipod"))
+
+
+def _phone_layout(lan: bool) -> bool:
+    """Fija el layout una vez detectado el celular; no intercambia widgets a mitad de subida."""
+    if lan or _looks_like_phone():
+        st.session_state["phone_layout"] = True
+    elif "phone_layout" not in st.session_state:
+        st.session_state["phone_layout"] = False
+    return bool(st.session_state["phone_layout"])
+
+
 def _stretch(fn) -> dict[str, object]:
     """Streamlit 1.50+ usa width='stretch'; versiones previas use_container_width."""
     if "width" in inspect.signature(fn).parameters:
@@ -180,6 +197,9 @@ def _inject_css() -> None:
             background: #8fd0df !important;
             color: #14363e !important;
         }
+        div[data-testid="stFileUploader"] section {
+            min-height: 4.6rem;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -247,43 +267,73 @@ def _save_inspection(visit_id: str, image: Image.Image, data: dict) -> dict:
     return data
 
 
-def _stash_uploaded_file() -> None:
-    uploaded = st.session_state.get(_upload_key())
+def _upload_token(uploaded) -> str:
+    file_id = getattr(uploaded, "file_id", None) or getattr(uploaded, "id", None) or ""
+    name = getattr(uploaded, "name", None) or ""
+    size = getattr(uploaded, "size", None)
+    return f"{file_id}|{name}|{size}"
+
+
+def _looks_like_heic(payload: bytes) -> bool:
+    if len(payload) < 16:
+        return False
+    if payload[4:8] != b"ftyp":
+        return False
+    brand = payload[8:16]
+    return any(marker in brand for marker in (b"heic", b"heif", b"mif1", b"msf1", b"heix"))
+
+
+def _open_rgb_image(payload: bytes) -> Image.Image | None:
+    try:
+        return Image.open(BytesIO(payload)).convert("RGB")
+    except Exception:
+        return None
+
+
+def _ingest_image_file(uploaded, source: str) -> None:
+    """Copia bytes a session_state. En móvil el archivo a veces llega vacío al primer toque."""
     if uploaded is None:
+        return
+    token = _upload_token(uploaded)
+    if token and st.session_state.get("_ingested_token") == token and st.session_state.get("draft_image"):
         return
     try:
         payload = uploaded.getvalue()
-        Image.open(BytesIO(payload)).convert("RGB")
     except Exception:
+        payload = b""
+    if not payload:
+        if st.session_state.get("_empty_upload_token") == token:
+            return
+        st.session_state["_empty_upload_token"] = token
+        st.session_state["draft_error"] = (
+            "La foto no llegó completa (pasa a veces con la galería). Vuelva a elegirla; puede ser la misma."
+        )
+        st.session_state["_photo_gen"] = _photo_gen() + 1
+        st.rerun()
+        return
+    if _looks_like_heic(payload) or _open_rgb_image(payload) is None:
         st.session_state["draft_error"] = (
             "No se pudo leer esa imagen. En el celular elija JPG o PNG "
             "(algunos teléfonos usan HEIC y aquí no abre)."
         )
         return
     st.session_state.pop("draft_error", None)
+    st.session_state.pop("_empty_upload_token", None)
     st.session_state["draft_image"] = payload
     st.session_state["draft_name"] = getattr(uploaded, "name", None) or "foto.jpg"
-    st.session_state["draft_source"] = "file_uploader"
-
-
-def _stash_camera_file() -> None:
-    camera_file = st.session_state.get(_camera_key())
-    if camera_file is None:
-        return
-    try:
-        payload = camera_file.getvalue()
-        Image.open(BytesIO(payload)).convert("RGB")
-    except Exception:
-        st.session_state["draft_error"] = "No se pudo leer la foto de la cámara. Intente de nuevo."
-        return
-    st.session_state.pop("draft_error", None)
-    st.session_state["draft_image"] = payload
-    st.session_state["draft_name"] = getattr(camera_file, "name", None) or "camera.jpg"
-    st.session_state["draft_source"] = "camera_input"
+    st.session_state["draft_source"] = source
+    st.session_state["_ingested_token"] = token
 
 
 def _clear_draft_photo() -> None:
-    for key in ("draft_image", "draft_name", "draft_source", "draft_error"):
+    for key in (
+        "draft_image",
+        "draft_name",
+        "draft_source",
+        "draft_error",
+        "_ingested_token",
+        "_empty_upload_token",
+    ):
         st.session_state.pop(key, None)
     # Streamlit no permite asignar None a file_uploader/camera_input; se recicla la key.
     st.session_state["_photo_gen"] = _photo_gen() + 1
@@ -459,30 +509,25 @@ def main() -> None:
         return
 
     st.subheader("Foto")
-    if "use_desktop_camera" not in st.session_state:
-        st.session_state["use_desktop_camera"] = not lan
-
-    if lan or not st.session_state["use_desktop_camera"]:
-        st.info("En el celular: Examinar → Cámara o Galería. Si no aparece, pruebe JPG o PNG.")
-        st.file_uploader(
-            "Tomar foto o elegir imagen",
-            type=["jpg", "jpeg", "png", "webp", "bmp"],
-            key=_upload_key(),
-            on_change=_stash_uploaded_file,
-        )
-    else:
-        st.camera_input("Tomar foto", key=_camera_key(), on_change=_stash_camera_file)
-        st.file_uploader(
-            "O subir una imagen",
-            type=["jpg", "jpeg", "png", "webp", "bmp"],
-            key=_upload_key(),
-            on_change=_stash_uploaded_file,
+    phone = _phone_layout(bool(lan))
+    if phone:
+        st.info(
+            "En el celular: Examinar → Cámara o Galería. "
+            "Si no sale la preview, vuelva a elegir la foto (puede ser la misma). Use JPG o PNG."
         )
 
-    if st.session_state.get(_upload_key()) is not None:
-        _stash_uploaded_file()
-    elif st.session_state.get(_camera_key()) is not None:
-        _stash_camera_file()
+    # Siempre el mismo widget primero: si se monta/desmonta la cámara, la subida no se pierde.
+    st.file_uploader(
+        "Tomar foto o elegir imagen",
+        type=None,
+        key=_upload_key(),
+        help="Si la galería no carga a la primera, elija la foto otra vez.",
+    )
+    _ingest_image_file(st.session_state.get(_upload_key()), "file_uploader")
+
+    if not phone:
+        st.camera_input("O tomar foto con la cámara del PC", key=_camera_key())
+        _ingest_image_file(st.session_state.get(_camera_key()), "camera_input")
 
     image: Image.Image | None = None
     image_source = str(st.session_state.get("draft_source") or "")

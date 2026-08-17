@@ -43,7 +43,8 @@ from src.inspections import (  # noqa: E402
 )
 
 MODELS_DIR = PROJECT_ROOT / "models"
-DEFAULT_MODEL_NAME = "mobilenet_v2.keras"
+# Despliegue: OOD F1/recall + latencia (no el F1 de Kaggle). Ver reports/TRAINING_RESULTS.md Corrida 02.
+DEFAULT_MODEL_NAME = "cnn_custom.keras"
 
 SEVERITY_STYLE: dict[str, tuple[str, str]] = {
     "Crítica": ("#B71C1C", "#FFEBEE"),

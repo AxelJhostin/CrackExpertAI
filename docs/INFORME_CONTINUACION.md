@@ -34,7 +34,7 @@ Pegar en un chat nuevo:
 | §1.3–1.4 | Objetivos con **8.000**; alcance alineado (sin ancho en campo) |
 | §2 | Protocolo 8k, tabla 2.6 (5.600 / 1.200 / 1.200) |
 | §3 | Flujo CNN + OpenCV + SE; tablas 3.4.1–3.4.2; reglas; MYCIN; JSON |
-| §8 | Redactada + **capturas** (pies Figura 8.1–8.6). Default de app: `mobilenet_v2.keras` hasta decidir modelo 8k |
+| §8 | Redactada + capturas. **Actualizar una frase:** la app carga `cnn_custom.keras` (OOD + latencia), no MobileNet |
 | §6–7, §4–5 números, §9 | **Listos para redactar** (8k + OOD 77 en `reports/`) |
 | §10, anexos | Se pueden pegar sin 8k (borrador al final de este archivo) |
 
@@ -82,8 +82,8 @@ Frase canónica para §5 y §9:
 
 ### 2.2. Modelo que carga la app
 
-`app.py` → `DEFAULT_MODEL_NAME = "mobilenet_v2.keras"` (coincide con el F1 Kaggle 8k).  
-En §8: una frase honesta — en campus gana MobileNet; en fotos de celular la CNN recupera más fisuras (recall 0,70 vs 0,33). No hace falta reentrenar para el informe.
+`app.py` → `DEFAULT_MODEL_NAME = "cnn_custom.keras"`.  
+Criterio de **despliegue:** F1/recall OOD + latencia (CNN). El F1=1,0 de MobileNet en Kaggle queda en §5 como saturación de dominio, no como modelo de la demo.
 
 ---
 
@@ -148,7 +148,7 @@ En §8: una frase honesta — en campus gana MobileNet; en fotos de celular la C
 
 ### §8 (retoque de una frase)
 
-- Actualizar modelo `.keras` y latencia 8k si se midió. Las capturas ya están.
+- La app ya carga `cnn_custom.keras`. En el Word: una frase (OOD + latencia). Las capturas pueden seguir siendo las mismas.
 
 ---
 
@@ -156,7 +156,7 @@ En §8: una frase honesta — en campus gana MobileNet; en fotos de celular la C
 
 Hecho: `main.py`, 4 modelos, archive, `test_external.py`, SE, geometría, `app.py`, `run_app.py`, visitas.
 
-Opcional **después** de elegir modelo: `DEFAULT_MODEL_NAME` en `app.py`.
+Opcional ya hecho: `DEFAULT_MODEL_NAME = "cnn_custom.keras"`.
 
 No ejecutar otro `python main.py` “por si acaso” si la corrida 8k ya acabó: pisa figuras (el archive debería haber guardado la anterior).
 

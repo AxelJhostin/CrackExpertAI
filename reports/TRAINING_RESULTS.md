@@ -293,7 +293,7 @@ Por el criterio automático del pipeline (F1 test Kaggle → AUC → latencia) s
 2. AUC = 1,0 (empatado con los demás).
 3. El test no participó en EarlyStopping.
 
-**Para el informe y para campo eso no basta.** En OOD (abajo) MobileNetV2 queda **por debajo** de la CNN (F1 0,278 vs 0,467). La CNN sigue siendo la más barata (6,5 ms, 1,3 MB) y la que **más fisuras reales recupera** (recall OOD 0,70). Criterio de titulación: Kaggle + OOD + latencia, no solo el CSV de `evaluate.py`.
+**Para el informe y para campo eso no basta.** En OOD MobileNetV2 queda **por debajo** de la CNN (F1 0,278 vs 0,467). La CNN es la más barata (6,5 ms, 1,3 MB) y la que **más fisuras reales recupera** (recall OOD 0,70). **Despliegue (`app.py`): `cnn_custom.keras`.** El CSV de `evaluate.py` sigue documentando el ganador Kaggle; no manda en la app.
 
 ### 7. Lectura crítica
 

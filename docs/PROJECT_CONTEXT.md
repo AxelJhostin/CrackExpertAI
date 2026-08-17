@@ -212,7 +212,7 @@ Anexos (código, arquitectura).
 | `test_external.py` comparativo + anexar corridas | Hecho |
 | Motor experto + `patron_orientacion` + MYCIN | Hecho |
 | Orientación OpenCV (`src/crack_geometry.py`) + mapeo al SE | Hecho |
-| App flujo simple (foto + elemento + ambiente + 9 cartas de campo) | Hecho |
+| App flujo simple (foto + elemento + ambiente + 9 cartas de campo) | Hecho; pesos **`cnn_custom.keras`** (OOD + latencia) |
 | Acceso LAN / celular (`run_app.py`, config Streamlit) | Hecho (firewall Windows a veces pide admin; WiFi de campus puede aislar clientes) |
 | Bitácora de visitas `data/inspections/` (`src/inspections.py`) | Hecho |
 | Capturas móvil + evidencias para informe §8 | Hecho (en el Word, 16 ago noche) |

@@ -22,7 +22,7 @@ Base de conocimiento del experto: [`docs/EXPERT_SYSTEM_SPEC.md`](docs/EXPERT_SYS
 | **ML — corrida 8.000 imgs** | **Hecha** (`2026-08-17 02:22:23`). Test \(n=1.200\). Kaggle saturado (F1 ≥ 0,998). CSV elige **MobileNetV2** (F1 1,0). CNN: 2 FN, 6,5 ms. Figuras vigentes: `reports/figures/`. Relato: `reports/TRAINING_RESULTS.md` Corrida 02. |
 | **OOD (fotos de casa / celular)** | Modelos 8k, corrida `2026-08-17 02:22:55`: **n=77** (30 Pos / 47 Neg). Gana **CNN** F1 **0,467** (recall 0,70). MobileNet F1 0,278. ResNet 0,063. La corrida 4k era n=71 (24/47); no mezclar F1 como si el set fuera el mismo. |
 | **Sistema experto** | ACI 224R / ACI 318 / NEC-SE-HM + CF MYCIN. Patrón (OpenCV) + **9 preguntas de campo**; «No lo sé» no inventa evidencia. |
-| **Prototipo** | `app.py` / `python run_app.py`: visita → foto + elemento + ambiente → CNN; cartas si hay fisura → dictamen. Bitácora `data/inspections/`. Default de pesos: `mobilenet_v2.keras` (ganador Kaggle; en campo la CNN recupera más). |
+| **Prototipo** | `app.py` / `python run_app.py`. Pesos por defecto: **`cnn_custom.keras`** (mejor F1/recall OOD y menor latencia). El CSV de Kaggle sigue eligiendo MobileNetV2; no se usa ese criterio en la app. |
 | **Informe** | Caps. 1–3 y 8 en el Word. Caps. 4–7 y 9: redactar ahora con 8k + OOD. Guía: `docs/INFORME_CONTINUACION.md`. |
 
 **Lectura para la defensa:** un F1 de 1,0 en Kaggle no cierra el problema. El aporte es el *domain shift* (MobileNet gana en campus y pierde en celular) y la integración CNN → sistema experto.
@@ -118,7 +118,7 @@ Semilla fija `random_state=42`. Augmentation **solo train** (Flip, Rotation 0,1,
 | ResNet50V2 | Idem | 20 capas |
 | EfficientNet-B0 | Idem | 20 capas |
 
-**Selección de modelo:** F1 y AUC en test Kaggle **más** F1/recall OOD, latencia y tamaño. No basarse solo en el benchmark saturado.
+**Selección de modelo:** F1 y AUC en test Kaggle **más** F1/recall OOD, latencia y tamaño. No basarse solo en el benchmark saturado. **La app carga `models/cnn_custom.keras`.** El selector de `evaluate.py` (solo F1 Kaggle) queda como bitácora experimental.
 
 ---
 
@@ -152,7 +152,7 @@ Piloto 4k (\(n=600\)): CNN/ResNet/EN F1=1,0; MobileNet 0,9967 (2 FP). Ver Corrid
 | EfficientNet-B0 | 0,234 | 0,204 | 0,333 | 0,253 |
 | ResNet50V2 | 0,234 | 0,061 | 0,067 | 0,063 |
 
-En campo gana la **CNN** (más recall). MobileNet, primero en Kaggle, se deja dos tercios de las fisuras reales. Accuracy OOD es engañosa por el desbalance.
+En campo gana la **CNN** (más recall). MobileNet, primero en Kaggle, se deja dos tercios de las fisuras reales. Por eso el prototipo usa **`cnn_custom.keras`**. Accuracy OOD es engañosa por el desbalance.
 
 OOD con pesos 4k (\(n=71\), 24/47): CNN F1 0,420 · MN 0,294 · RN 0,140 · EN 0,121. El set creció en 6 Positive; no atribuir todo el delta al 8k.
 

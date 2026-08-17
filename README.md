@@ -18,14 +18,14 @@ Base de conocimiento del experto: [`docs/EXPERT_SYSTEM_SPEC.md`](docs/EXPERT_SYS
 
 | Frente | Qué hay |
 | --- | --- |
-| **ML — corrida 4.000 imgs** | Completa. Test retenido \(n=600\): F1 ≈ 1,0 en tres modelos; CNN custom elegida por empate en F1 y menor latencia (~6,4 ms, 1,3 MB). Figuras y CSV en `reports/` y snapshot en `reports/archive/2026-08-16_083631/`. |
-| **ML — 8.000 imgs** | Código listo (4.000/4.000, split 5.600 / 1.200 / 1.200, `seed=42`). Pendiente de noche: `python main.py` (archiva la corrida 4k y no reanuda épocas si se corta). |
-| **OOD (fotos de casa / celular)** | 71 fotos etiquetadas (24 Positive / 47 Negative). En Kaggle saturan; en campo **no**. Mejor F1 OOD: CNN custom **0,42** (recall 0,71). ResNet/EfficientNet caen fuerte. Tabla: `reports/external_test_comparison.md`. |
-| **Sistema experto** | ACI 224R / ACI 318 / NEC-SE-HM + CF MYCIN. Patrón (OpenCV) + **9 preguntas de campo**; «No lo sé» no inventa evidencia. Dictamen llano (titular + qué hacer) según esas respuestas. |
-| **Prototipo** | `app.py` / `python run_app.py`: visita → foto + elemento + ambiente → CNN; si hay fisura, **cartas apiladas** (Sí / No / No lo sé) → dictamen. Bitácora en `data/inspections/`. |
-| **Informe** | Caps. 1–3 y 8 (capturas) en el Word. Caps. 4–7 y 9: tras la corrida 8k; guía `docs/INFORME_CONTINUACION.md`. Si el 8k no cierra, se puede redactar con 4k + OOD. |
+| **ML — corrida 4.000 imgs** | Completa. Test \(n=600\). Snapshot: `reports/archive/2026-08-16_083631/` (y copia previa al 8k: `..._215127/`). |
+| **ML — corrida 8.000 imgs** | **Hecha** (`2026-08-17 02:22:23`). Test \(n=1.200\). Kaggle saturado (F1 ≥ 0,998). CSV elige **MobileNetV2** (F1 1,0). CNN: 2 FN, 6,5 ms. Figuras vigentes: `reports/figures/`. Relato: `reports/TRAINING_RESULTS.md` Corrida 02. |
+| **OOD (fotos de casa / celular)** | Modelos 8k, corrida `2026-08-17 02:22:55`: **n=77** (30 Pos / 47 Neg). Gana **CNN** F1 **0,467** (recall 0,70). MobileNet F1 0,278. ResNet 0,063. La corrida 4k era n=71 (24/47); no mezclar F1 como si el set fuera el mismo. |
+| **Sistema experto** | ACI 224R / ACI 318 / NEC-SE-HM + CF MYCIN. Patrón (OpenCV) + **9 preguntas de campo**; «No lo sé» no inventa evidencia. |
+| **Prototipo** | `app.py` / `python run_app.py`: visita → foto + elemento + ambiente → CNN; cartas si hay fisura → dictamen. Bitácora `data/inspections/`. Default de pesos: `mobilenet_v2.keras` (ganador Kaggle; en campo la CNN recupera más). |
+| **Informe** | Caps. 1–3 y 8 en el Word. Caps. 4–7 y 9: redactar ahora con 8k + OOD. Guía: `docs/INFORME_CONTINUACION.md`. |
 
-**Lectura para la defensa:** un F1 de 1,0 en Kaggle no cierra el problema. El aporte experimental es el *domain shift* (benchmark vs celular) y la integración CNN → sistema experto.
+**Lectura para la defensa:** un F1 de 1,0 en Kaggle no cierra el problema. El aporte es el *domain shift* (MobileNet gana en campus y pierde en celular) y la integración CNN → sistema experto.
 
 ---
 
@@ -105,7 +105,7 @@ crackexpert-ai/
 | Protocolo | Total | Train (70 %) | Val (15 %) | Test (15 %) | Estado |
 | --- | ---: | ---: | ---: | ---: | --- |
 | Corrida 1 | 4.000 (2k/2k) | 2.800 | 600 | 600 | **Hecha** |
-| Corrida 2 | 8.000 (4k/4k) | 5.600 | 1.200 | 1.200 | Lanzar `python main.py`; no reanuda si se interrumpe |
+| Corrida 2 | 8.000 (4k/4k) | 5.600 | 1.200 | 1.200 | **Hecha** (`python main.py`, 17 ago 2026) |
 
 Semilla fija `random_state=42`. Augmentation **solo train** (Flip, Rotation 0,1, Zoom 0,1, Brightness 0,1). Val y test: resize 224×224 RGB, sin aumento.
 
@@ -124,27 +124,37 @@ Semilla fija `random_state=42`. Augmentation **solo train** (Flip, Rotation 0,1,
 
 ## 4. Resultados vigentes
 
-Detalle y figuras: [`reports/TRAINING_RESULTS.md`](reports/TRAINING_RESULTS.md).
+Detalle, curvas y lectura: [`reports/TRAINING_RESULTS.md`](reports/TRAINING_RESULTS.md) (Corrida 01 = 4k; Corrida 02 = 8k).
 
-### 4.1. Test Kaggle (corrida 4k, \(n=600\))
+### 4.1. Test Kaggle — corrida 8k (\(n=1.200\)), 17 ago 2026
 
-| Modelo | Test Acc | F1 | ROC-AUC | Latencia (ms) | Tamaño (MB) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| CNN personalizada | 1,000 | 1,000 | 1,000 | 6,4 | 1,3 |
-| MobileNetV2 | 0,997 | 0,997 | 1,000 | 11,1 | 19,5 |
-| ResNet50V2 | 1,000 | 1,000 | 1,000 | 22,3 | 150,6 |
-| EfficientNet-B0 | 1,000 | 1,000 | 1,000 | 14,0 | 26,5 |
+Fuente: `reports/models_comparison.csv`.
 
-### 4.2. Fotos reales OOD (16 ago 2026, \(n=71\))
+| Modelo | Test Acc | Precision | Recall | F1 | ROC-AUC | Latencia (ms) | Tamaño (MB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| CNN personalizada | 0,9983 | 1,0000 | 0,9967 | 0,9983 | 1,0000 | **6,5** | **1,3** |
+| MobileNetV2 | **1,0000** | 1,0000 | **1,0000** | **1,0000** | 1,0000 | 11,3 | 19,5 |
+| ResNet50V2 | 0,9983 | 0,9967 | 1,0000 | 0,9983 | 1,0000 | 22,7 | 150,6 |
+| EfficientNet-B0 | 0,9992 | 0,9983 | 1,0000 | 0,9992 | 1,0000 | 14,1 | 26,5 |
+
+El CSV elige MobileNetV2 (único F1=1,0). CNN: 2 FN. ResNet: 2 FP. EfficientNet: 1 FP. AUC=1,0 en los cuatro = **saturación del dominio Kaggle**, no “problema resuelto”.
+
+Piloto 4k (\(n=600\)): CNN/ResNet/EN F1=1,0; MobileNet 0,9967 (2 FP). Ver Corrida 01.
+
+### 4.2. Fotos reales OOD — modelos 8k (17 ago 2026, \(n=77\))
+
+30 fisura / 47 sanas. Fuente: `reports/external_test_comparison.md` corrida `2026-08-17 02:22:55`.
 
 | Modelo | Accuracy | Precision | Recall | F1 |
 | --- | ---: | ---: | ---: | ---: |
-| CNN personalizada | 0,338 | 0,298 | 0,708 | **0,420** |
-| MobileNetV2 | 0,324 | 0,227 | 0,417 | 0,294 |
-| ResNet50V2 | 0,310 | 0,121 | 0,167 | 0,140 |
-| EfficientNet-B0 | 0,183 | 0,095 | 0,167 | 0,121 |
+| CNN personalizada | 0,377 | 0,350 | **0,700** | **0,467** |
+| MobileNetV2 | 0,325 | 0,238 | 0,333 | 0,278 |
+| EfficientNet-B0 | 0,234 | 0,204 | 0,333 | 0,253 |
+| ResNet50V2 | 0,234 | 0,061 | 0,067 | 0,063 |
 
-Accuracy OOD es engañosa (24 fisura / 47 sanas). En el informe se defienden **F1 y recall** y el contraste con Kaggle.
+En campo gana la **CNN** (más recall). MobileNet, primero en Kaggle, se deja dos tercios de las fisuras reales. Accuracy OOD es engañosa por el desbalance.
+
+OOD con pesos 4k (\(n=71\), 24/47): CNN F1 0,420 · MN 0,294 · RN 0,140 · EN 0,121. El set creció en 6 Positive; no atribuir todo el delta al 8k.
 
 ---
 

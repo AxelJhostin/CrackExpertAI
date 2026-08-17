@@ -15,7 +15,7 @@
 
 Pegar o adjuntar este archivo y decir:
 
-> Lee `docs/PROJECT_CONTEXT.md`. Es el norte de CrackExpert AI (híbrido CNN + SE, rúbrica de la ingeniera, estado del repo). No reinventes el alcance. El siguiente entregable pendiente está en la sección 8. Para el informe tras la corrida 8k: `docs/INFORME_CONTINUACION.md`.
+> Lee `docs/PROJECT_CONTEXT.md`. Es el norte de CrackExpert AI (híbrido CNN + SE, rúbrica de la ingeniera, estado del repo). No reinventes el alcance. El siguiente entregable es redactar §4–7 y §9 (`docs/INFORME_CONTINUACION.md`) con cifras de la corrida 8k. No ejecutes `python main.py`.
 
 ---
 
@@ -121,7 +121,8 @@ Tabla de mecanismos (motor, sin cambio de reglas):
 - **Entrenamiento:** 2 fases (backbone congelado LR \(10^{-3}\); fine-tuning LR \(10^{-5}\)), Adam, `binary_crossentropy`, EarlyStopping (`val_loss`, patience 5, `restore_best_weights`).  
 - **OOD:** fotos reales en `data/external_test/` (`test_external.py`); tablas acumulativas en `reports/external_test_comparison.*`.  
 - **Histórico de corridas ML:** `main.py` archiva figuras/CSV previos en `reports/archive/` antes de pisar `reports/figures/`.  
-- **Corrida 4k (completada):** test \(n=600\); CNN custom seleccionada por F1 empatado y menor latencia. Ver `reports/TRAINING_RESULTS.md` y, tras 8k, `reports/archive/`.
+- **Corrida 4k (completada):** test \(n=600\); CNN por F1 empatado y latencia. Archive: `reports/archive/2026-08-16_083631/`.  
+- **Corrida 8k (completada, 17 ago 2026 02:22:23):** test \(n=1.200\). MobileNetV2 F1=1,0 (criterio CSV). CNN F1=0,9983 (2 FN, 6,5 ms). EfficientNet 0,9992 (1 FP). ResNet 0,9983 (2 FP). AUC=1,0 los cuatro. Relato: `reports/TRAINING_RESULTS.md` Corrida 02.
 
 ---
 
@@ -191,9 +192,8 @@ El informe de titulación (secciones 1–10) es el vehículo; la rúbrica es el 
 10. Referencias (ACI/NEC, ML, SE).  
 Anexos (código, arquitectura).
 
-**Estado del informe (16 ago noche):** §1–3 y §8 (con capturas) en el Word. §4–7 y §9 se llenan **después** de la corrida 8k. Checklist: [`INFORME_CONTINUACION.md`](INFORME_CONTINUACION.md).  
-**Piloto 4k + OOD 19:08 (n=71):** solo para delta / no vender como tabla oficial de titulación.  
-**8k:** `python main.py`; si F1 Kaggle ~1.0 otra vez → saturación de dominio, no fracaso.
+**Estado del informe (17 ago 2026):** §1–3 y §8 en el Word del repo: [`docs/Proyecto_SistemaExperto_HernandezAxel.docx`](Proyecto_SistemaExperto_HernandezAxel.docx). **§4–7 y §9 se pueden redactar:** corrida 8k y OOD 77 fotos ya están en `reports/`. Checklist: [`INFORME_CONTINUACION.md`](INFORME_CONTINUACION.md).  
+**No vender F1 Kaggle ≈ 1,0 como problema resuelto.** Discriminación de modelos: OOD + latencia.
 
 ---
 
@@ -205,9 +205,10 @@ Anexos (código, arquitectura).
 | Corrida 4k + informe en `TRAINING_RESULTS.md` | Hecho |
 | Ampliación a 8k en `data_loader` | Hecho (código) |
 | Archivo automático de figuras previas | Hecho (`src/archive.py`) |
-| Entrenamiento 8k | Pendiente de noche (`python main.py`); no bloquea redactar §4–7 con 4k+OOD |
-| OOD etiquetado 16-ago 19:08 | **Hecho:** 24 Positive + 47 Negative. F1: CNN 0.420 · MobileNet 0.294 · ResNet 0.140 · EfficientNet 0.121. Recall CNN 0.708. Contraste con Kaggle F1≈1.0 |
-| Informe §4–9 | **Siguiente chat:** redacción alineada a rúbrica y sílabo |
+| Entrenamiento 8k | **Hecho** `2026-08-17 02:22:23`. F1 Kaggle: MN 1,0 · EN 0,9992 · CNN 0,9983 · RN 0,9983 |
+| OOD modelos 8k | **Hecho** `2026-08-17 02:22:55`, n=77 (30 Pos / 47 Neg). F1: CNN **0,467** · MN 0,278 · EN 0,253 · RN 0,063. Recall CNN 0,700 |
+| OOD piloto 4k (delta) | 16-ago 19:08, n=71 (24/47). CNN 0,420 · MN 0,294 · RN 0,140 · EN 0,121 |
+| Informe §4–7 y §9 | **Siguiente chat:** redacción con cifras 8k. No reentrenar |
 | `test_external.py` comparativo + anexar corridas | Hecho |
 | Motor experto + `patron_orientacion` + MYCIN | Hecho |
 | Orientación OpenCV (`src/crack_geometry.py`) + mapeo al SE | Hecho |
@@ -215,7 +216,6 @@ Anexos (código, arquitectura).
 | Acceso LAN / celular (`run_app.py`, config Streamlit) | Hecho (firewall Windows a veces pide admin; WiFi de campus puede aislar clientes) |
 | Bitácora de visitas `data/inspections/` (`src/inspections.py`) | Hecho |
 | Capturas móvil + evidencias para informe §8 | Hecho (en el Word, 16 ago noche) |
-| Informe §4–7 y §9 con métricas 8k | **Mañana:** ver `docs/INFORME_CONTINUACION.md` |
 
 **Prototipo de campo (cómo se usa)**
 
@@ -224,24 +224,25 @@ Anexos (código, arquitectura).
 3. Generar: CNN + geometría; si hay fisura, **9 cartas** (Sí/No/No lo sé). Luego el SE; queda JPG + `visit.json`.  
 4. Resumen de la visita (conteo por severidad). Reabrir visitas anteriores en el mismo PC.
 
-**Números OOD a citar (no inventar otros):**
+**Números OOD vigentes (modelos 8k; no inventar otros):**
 
 | Modelo | Acc | Prec | Rec | F1 OOD |
 | --- | ---: | ---: | ---: | ---: |
-| CNN personalizada | 0.338 | 0.298 | 0.708 | 0.420 |
-| MobileNetV2 | 0.324 | 0.227 | 0.417 | 0.294 |
-| ResNet50V2 | 0.310 | 0.121 | 0.167 | 0.140 |
-| EfficientNet-B0 | 0.183 | 0.095 | 0.167 | 0.121 |
+| CNN personalizada | 0.377 | 0.350 | 0.700 | **0.467** |
+| MobileNetV2 | 0.325 | 0.238 | 0.333 | 0.278 |
+| EfficientNet-B0 | 0.234 | 0.204 | 0.333 | 0.253 |
+| ResNet50V2 | 0.234 | 0.061 | 0.067 | 0.063 |
 
-Fuente: `reports/external_test_comparison.md` corrida `2026-08-16 19:08:31`. Accuracy OOD es engañosa (desbalance 24/47); defender **F1 y recall** y el *domain shift*.
+Fuente: `reports/external_test_comparison.md` corrida `2026-08-17 02:22:55`, n=77 (30 Pos / 47 Neg). Accuracy OOD es engañosa; defender **F1 y recall**.  
+Delta 4k (n=71, 24/47, `2026-08-16 19:08:31`): CNN 0.420 · MN 0.294 · RN 0.140 · EN 0.121. El set OOD creció 6 Positive; no atribuir todo el cambio al 8k.
 
-**Cuando termine la corrida 8k**
+**Para redactar el informe (siguiente chat)**
 
-1. Verificar `reports/archive/` (snapshot 4k) y `reports/figures/` + `models_comparison.csv` (8k).  
-2. Correr o revisar `external_test_comparison` (ya lo lanza `main.py` al final).  
-3. Redactar informe §4, 5, 6, 7, 9 con valores **exactos** (no redondeos inventados).  
-4. §8: flujo CNN → JSON/dictamen SE, latencia, capturas en móvil.  
-5. Criterio 5: no vender F1=1,0 del test Kaggle como “problema resuelto”; usar discrepancias OOD (fotos WhatsApp, juntas, textura).
+1. Cifras Kaggle 8k: `reports/models_comparison.csv` y `TRAINING_RESULTS.md` Corrida 02.  
+2. OOD: última sección de `external_test_comparison.md` (n=77).  
+3. Redactar §4, 5, 6, 7, 9 con valores **exactos**.  
+4. §8 ya tiene capturas; una frase: CSV elige MobileNet; en campo la CNN tiene más recall.  
+5. Criterio 5: no vender F1=1,0 de Kaggle; el cuento es *domain shift*.
 
 ---
 
@@ -255,4 +256,4 @@ Fuente: `reports/external_test_comparison.md` corrida `2026-08-16 19:08:31`. Acc
 
 ---
 
-*Última consolidación de contexto: 16 de agosto de 2026 (noche): flujo de inspección simple, geometría OpenCV, visitas locales. Actualizar la sección 8 cuando cierre la corrida de 8.000 imágenes y cuando haya capturas de la app en celular.*
+*Última consolidación: 17 de agosto de 2026 (mañana). Corrida 8k cerrada. Siguiente paso: informe §4–7 y §9.*

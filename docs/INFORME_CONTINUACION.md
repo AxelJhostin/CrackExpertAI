@@ -1,8 +1,9 @@
 # Continuación del informe — qué hacer mañana
 
 **Para quién:** Axel / equipo CrackExpert AI, o un chat nuevo de Cursor.  
-**Cuándo:** después de que termine `python main.py` (corrida de **8.000** imágenes).  
-**Word:** `C:\Users\axela\Documents\Universidad\Sistema_Experto\Proyecto_SistemaExperto_HernandezAxel.docx`  
+**Cuándo:** la corrida de **8.000** ya terminó (`2026-08-17 02:22:23`). Este archivo es el briefing para **redactar** §4–7 y §9.  
+**Word (copia en el repo):** [`docs/Proyecto_SistemaExperto_HernandezAxel.docx`](Proyecto_SistemaExperto_HernandezAxel.docx)  
+(También puede haber copia en Documentos; para el chat nuevo usar la de `docs/`.)  
 **Norte del proyecto:** [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md) · SE: [`EXPERT_SYSTEM_SPEC.md`](EXPERT_SYSTEM_SPEC.md)
 
 Pegar en un chat nuevo:
@@ -15,10 +16,10 @@ Pegar en un chat nuevo:
 
 - Seguimos con **CrackExpert AI** (híbrido CNN + SE). No cambiar de dominio.
 - ML = núcleo experimental (4 arquitecturas, protocolo 8k). SE = integración del resultado (ACI/NEC + CF MYCIN), no el 50 % del informe.
-- Historia científica: en Kaggle F1 puede ir ~1,0 (**dominio saturado**); en fotos de casa (n=71) el F1 OOD de la piloto 4k fue bajo (CNN 0,420). Eso es **domain shift**, no “el modelo está roto”.
-- No vender F1=1,0 como problema resuelto. Accuracy OOD es engañosa (24 Positive / 47 Negative): usar **F1 y recall**.
-- Criterio de modelo final: **Kaggle + OOD + latencia**, no solo CNN custom por ~6 ms.
-- Si el 8k sigue ~1,0 en test Kaggle: concluir **saturación de dominio**, no fracaso ni “hace falta U-Net / 10 arquitecturas”.
+- Historia científica: en Kaggle F1 ≥ 0,998 (**dominio saturado**); en fotos de casa n=77 (modelos 8k) el F1 OOD de la CNN es **0,467** (recall 0,70). MobileNet gana Kaggle (F1 1,0) y pierde en campo (F1 0,278). Eso es **domain shift**.
+- No vender F1=1,0 como problema resuelto. Accuracy OOD es engañosa (30 Positive / 47 Negative): usar **F1 y recall**.
+- Criterio de modelo: **Kaggle + OOD + latencia**. CSV → MobileNet; campo → CNN (más recall, 6,5 ms).
+- Duplicar 4k→8k **no** rompió el techo Kaggle: saturación de dominio, no hace falta U-Net / 10 arquitecturas.
 - Mejoras viables en §7: más OOD, augmentation tipo móvil. **No** 10 arquitecturas ni U-Net en esta entrega.
 - El SE no es peritaje; no calcula φVn. “Crítica” = alerta de protocolo.
 - En campo: foto + elemento + ambiente; **ancho no se pide**; orientación la infiere OpenCV.
@@ -34,7 +35,7 @@ Pegar en un chat nuevo:
 | §2 | Protocolo 8k, tabla 2.6 (5.600 / 1.200 / 1.200) |
 | §3 | Flujo CNN + OpenCV + SE; tablas 3.4.1–3.4.2; reglas; MYCIN; JSON |
 | §8 | Redactada + **capturas** (pies Figura 8.1–8.6). Default de app: `mobilenet_v2.keras` hasta decidir modelo 8k |
-| §6–7, §4–5 números, §9 | **Pendientes de la corrida 8k** |
+| §6–7, §4–5 números, §9 | **Listos para redactar** (8k + OOD 77 en `reports/`) |
 | §10, anexos | Se pueden pegar sin 8k (borrador al final de este archivo) |
 
 Índice del Word (subtítulos a respetar):
@@ -44,7 +45,7 @@ Pegar en un chat nuevo:
 - **5.** Evaluación [rúbrica 3]  
   5.1 Acc, Prec, Rec, F1 (val y test) · 5.2 Matrices · 5.3 ROC-AUC · 5.4 Latencia  
 - **6.** Pruebas reales [rúbrica 4]  
-  6.1 Protocolo celular OOD · 6.2 Tabla 71 fotos · 6.3 Dictamen SE  
+  6.1 Protocolo celular OOD · 6.2 Tabla **77** fotos (30/47) · 6.3 Dictamen SE  
 - **7.** Análisis crítico [rúbrica 5]  
 - **9.** Conclusiones  
 
@@ -54,7 +55,9 @@ Tablas HTML de apoyo (2.6 y 3.4.2): `docs/tablas_informe.html`.
 
 ## 2. Checklist al cerrar el entrenamiento (antes de redactar)
 
-No inventar números. Si `models_comparison.csv` sigue diciendo 4.000 / test n=600 / fecha 02:06:32, **la corrida 8k no terminó**.
+No inventar números. La corrida 8k **ya está**: `experiments_log.md` entrada `2026-08-17 02:22:23`, test n=1.200.
+
+Checklist de archivos (todo debería existir):
 
 1. Abrir `reports/experiments_log.md` → debe haber una **Corrida** nueva (después de `2026-08-16 02:06:32`) con subconjunto **8.000** y test **n=1.200**.
 2. Abrir `reports/models_comparison.csv` → copiar **tal cual** (decimales del CSV).
@@ -68,10 +71,10 @@ No inventar números. Si `models_comparison.csv` sigue diciendo 4.000 / test n=6
    - `roc_curves_comparison.png`
    - `misclassified_examples.png` (puede estar vacía de errores si F1=1,0)
 5. Historiales: `reports/history_*.json` (épocas, si EarlyStopping cortó).
-6. OOD: `reports/external_test_comparison.md` → **última** corrida (la de más abajo). Debe ser n=71 etiquetadas. Si `main.py` no la regeneró: `python test_external.py`.
-7. `reports/TRAINING_RESULTS.md` → anexar lectura de la corrida 8k si el script no lo hizo.
+6. OOD: `reports/external_test_comparison.md` → **última** corrida `2026-08-17 02:22:55`, **n=77** (30/47).
+7. `reports/TRAINING_RESULTS.md` → Corrida 02 anexada.
 
-### 2.1. Si Kaggle 8k ≈ 1,0 otra vez
+### 2.1. Kaggle 8k ≈ 1,0 (ya ocurrió)
 
 Frase canónica para §5 y §9:
 
@@ -79,8 +82,8 @@ Frase canónica para §5 y §9:
 
 ### 2.2. Modelo que carga la app
 
-`app.py` → `DEFAULT_MODEL_NAME = "mobilenet_v2.keras"`.  
-Después de ver F1 OOD + latencia 8k, cambiar a una línea el `.keras` ganador y una frase en §8.1. No hace falta reentrenar.
+`app.py` → `DEFAULT_MODEL_NAME = "mobilenet_v2.keras"` (coincide con el F1 Kaggle 8k).  
+En §8: una frase honesta — en campus gana MobileNet; en fotos de celular la CNN recupera más fisuras (recall 0,70 vs 0,33). No hace falta reentrenar para el informe.
 
 ---
 
@@ -92,13 +95,14 @@ Después de ver F1 OOD + latencia 8k, cambiar a una línea el `.keras` ganador y
 | Protocolo, semilla, 2 fases | `reports/experiments_log.md` (entrada 8k) |
 | Épocas, val_loss, corte EarlyStopping | `reports/history_*.json` + curvas PNG |
 | Matrices / ROC / curvas | `reports/figures/*.png` |
-| OOD n=71, P por foto, consenso, F1 | **Última** sección de `reports/external_test_comparison.md` y `.csv` |
+| OOD n=77, P por foto, consenso, F1 | **Última** sección de `reports/external_test_comparison.md` y `.csv` |
 | Relato piloto 4k (delta) | `reports/TRAINING_RESULTS.md` Corrida 01 · archive |
 
-**Piloto 4k (solo para comparar, no como tabla oficial de titulación):**  
-Test n=600. CNN F1=1,0, latencia 6,444 ms. OOD 19:08:31 — CNN F1=0,420 / MN=0,294 / RN=0,140 / EN=0,121. Recall CNN=0,708. Acc OOD no destacar.
+**Piloto 4k (solo para comparar):** Test n=600. CNN F1=1,0, latencia 6,444 ms. OOD 19:08:31 n=71 — CNN F1=0,420 / MN=0,294 / RN=0,140 / EN=0,121.
 
-**OOD vigente hasta que corra 8k:** misma tabla 71 fotos; las **P** cambiarán con pesos nuevos.
+**OOD vigente (pesos 8k):** n=77 (30/47), `2026-08-17 02:22:55`. CNN F1=0,467 rec=0,700 · MN 0,278 · EN 0,253 · RN 0,063.
+
+**Kaggle vigente:** MN F1=1,0 · EN 0,9992 · CNN 0,9983 (2 FN) · RN 0,9983 (2 FP). AUC=1,0.
 
 ---
 
@@ -107,7 +111,7 @@ Test n=600. CNN F1=1,0, latencia 6,444 ms. OOD 19:08:31 — CNN F1=0,420 / MN=0,
 ### §4 — rúbrica 1 y 2
 
 - 4.1–4.3: se puede reutilizar el protocolo ya escrito en chats (Adam, BCE, LR 1e-3 / 1e-5, batch 32, ES patience 5, augmentation solo train). Sustituir N: train 5.600 / val 1.200 / test 1.200.
-- 4.5–4.6: pegar las **cuatro** curvas; decir si EarlyStopping cortó (en 4k solo MobileNet, 27 épocas). Interpretar: proceso controlado, no divergencia al abrir Fase 2.
+- 4.5–4.6: pegar las **cuatro** curvas 8k. EarlyStopping cortó en las cuatro (CNN 36, MN 33, RN 26, EN 29 épocas). Interpretar: proceso controlado.
 - Una nota de 4–6 líneas: piloto 4k vs 8k (si F1 sigue 1,0 → saturación).
 
 ### §5 — rúbrica 3
@@ -118,19 +122,29 @@ Test n=600. CNN F1=1,0, latencia 6,444 ms. OOD 19:08:31 — CNN F1=0,420 / MN=0,
 
 ### §6 — rúbrica 4
 
-- 6.1: protocolo celular ya borrado en el chat (71 fotos, 24/47, WhatsApp, umbral 0,50, `test_external.py`). Pegar y ajustar fecha de corrida 8k.
-- 6.2: **no fingir alta precisión** si F1 OOD sigue ~0,4. Evidencia = carpeta `data/external_test/` + markdown. Tabla resumen 4 modelos + anexo con 71 filas. 4–6 fotos TP/FP/FN/TN.
-- 6.3: SE con Figuras 8.3–8.4; R0 / R6b / R-P1.
+- 6.1: protocolo celular, umbral 0,50, `test_external.py`. **n=77** (30 Positive / 47 Negative), corrida `2026-08-17 02:22:55`. El piloto 4k era n=71 (24/47): no mezclar.
+- 6.2: **no fingir alta precisión**. F1 OOD CNN 0,467. Evidencia = `data/external_test/` + markdown. Tabla 4 modelos + anexo. 4–6 fotos TP/FP/FN/TN.
+- 6.3: SE con Figuras 8.3–8.4; cartas de campo; R0 / R6b / R-P1.
+- Si preguntan “¿por qué no 2.000 fotos de obra?”: el OOD **no entrena** el modelo; **falsifica** el F1 de Kaggle. En hormigón no hay un cajón de muestras como en botellas. Ver recuadro más abajo.
 
 ### §7 — rúbrica 5
 
-- Causas: juntas, textura, luz, compresión WhatsApp, encuentro columna-pared, dataset campus vs casa.
-- Mejoras **viables**: más OOD etiquetado, augmentation (JPEG, brillo, perspectiva), umbral o coste de FN/FP. No U-Net ahora.
-- Si CNN sigue siendo la de mayor F1 OOD y menor latencia, decirlo; si no, el ganador es el compromiso Kaggle+OOD+ms.
+- Causas: juntas, textura, luz, JPEG/WhatsApp, encuentro columna-pared, dataset de campus vs casa.
+- Mejoras **de esta entrega** (viables, no hechas): más OOD balanceado (150–300), augmentation tipo móvil. **No** U-Net ni 10 arquitecturas.
+- CNN: mayor F1 OOD (0,467) y menor latencia (6,5 ms). MobileNet: F1 Kaggle 1,0 y F1 OOD 0,278.
+
+**Recriminación del proyecto anterior (botellas) vs este (hormigón) — no mezclar rúbricas**
+
+- Botellas: el objeto cabe en la mesa; se pueden juntar decenas o cientos de muestras reales **para entrenar**. Ahí “pocas fotos reales” es un hueco del *dataset de entrenamiento*.
+- Fisuras en elementos: no hay un inventario en el laboratorio. Las 8.000 son el corpus público etiquetado (presencia/ausencia). Las 77 de celular son **prueba de desplazamiento**, no el train.
+- Decirlo en §7 sin victimizarse: el límite es el **acceso a obra etiquetada**, no que se haya “olvidado” el campo.
 
 ### §9
 
-- Híbrido justificado. Percepción saturada in-domain. OOD = límite real. SE = normas + CF, no peritaje. Próximo paso: datos de campo, no más backbones de moda.
+- Entrega **cerrada**: híbrido CNN + SE, protocolo 8k, OOD, prototipo. No es un detector de patología de obra.
+- Percepción saturada in-domain; OOD = límite real; SE = normas + CF, no peritaje.
+- **Trabajo futuro (tesis / civil), no excusa de esta nota:** un sistema no binario (*Structural Damage AI*) que separe fisura, desprendimiento, corrosión, acero expuesto, con más datos de campo, dimensiones y prioridad de inspección. Eso exige tiempo de obra y etiquetado que esta asignatura no cubre.
+- Próximo paso técnico: datos de campo y taxonomía de daño, no más backbones de moda.
 
 ### §8 (retoque de una frase)
 

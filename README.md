@@ -9,313 +9,187 @@
 
 Pontificia Universidad Católica del Ecuador — Sede Manabí · Asignatura de Sistemas Expertos.
 
+Memoria del proyecto (decisiones, rúbrica, estado): [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md)  
+Base de conocimiento del experto: [`docs/EXPERT_SYSTEM_SPEC.md`](docs/EXPERT_SYSTEM_SPEC.md)
+
+---
+
+## Estado actual (agosto 2026)
+
+| Frente | Qué hay |
+| --- | --- |
+| **ML — corrida 4.000 imgs** | Completa. Test retenido \(n=600\): F1 ≈ 1,0 en tres modelos; CNN custom elegida por empate en F1 y menor latencia (~6,4 ms, 1,3 MB). Figuras y CSV en `reports/` y snapshot en `reports/archive/2026-08-16_083631/`. |
+| **ML — 8.000 imgs** | Código listo (4.000/4.000, split 5.600 / 1.200 / 1.200, `seed=42`). Entrenamiento se lanza con `python main.py` (antes archiva la corrida previa). |
+| **OOD (fotos de casa / celular)** | 71 fotos etiquetadas (24 Positive / 47 Negative). En Kaggle saturan; en campo **no**. Mejor F1 OOD: CNN custom **0,42** (recall 0,71). ResNet/EfficientNet caen fuerte. Tabla: `reports/external_test_comparison.md`. |
+| **Sistema experto** | Reglas ACI 224R / ACI 318 / NEC-SE-HM + CF MYCIN. Patrón de fisura: selector o inferencia OpenCV. |
+| **Prototipo** | `app.py` / `python run_app.py`: visita de obra, CNN + geometría + dictamen. |
+| **Informe** | Caps. 1–3 redactados. Caps. 4–9: redacción con 4k + OOD; el delta 8k se incorpora cuando termine esa corrida. |
+
+**Lectura para la defensa:** un F1 de 1,0 en Kaggle no cierra el problema. El aporte experimental es el *domain shift* (benchmark vs celular) y la integración CNN → sistema experto.
+
 ---
 
 ## 1. Descripción general
 
-Las fisuras en hormigón armado son un indicador temprano de pérdida de **servicio**, **durabilidad** y, en casos extremos, de **integridad estructural**. Un ancho excesivo facilita el ingreso de humedad, CO₂ y cloruros hacia la armadura; acelera la corrosión; y puede evidenciar mecanismos de fallo (flexión, cortante, asentamiento) que no deben interpretarse solo como un “defecto estético”.
+Las fisuras en hormigón armado indican pérdida de **servicio**, **durabilidad** o, en casos graves, **integridad**. La inspección visual manual es lenta, subjetiva y no escala.
 
-La inspección visual humana es costosa, subjetiva y difícil de estandarizar. Un clasificador de aprendizaje profundo resuelve bien la **percepción** (¿hay fisura en la imagen?), pero no razona sobre **normativa**, exposición ambiental ni tipo de elemento. Inversamente, un sistema experto clásico razona con reglas ACI/NEC, pero no “ve” la fisura.
+Una CNN solo responde *¿hay una grieta en la foto?* (\(P_{\mathrm{ML}}\)). Un sistema experto de normas no procesa píxeles. **CrackExpert AI** desacopla ambas capas:
 
-**CrackExpert AI** desacopla ambos problemas:
+| Capa | Responsabilidad |
+| --- | --- |
+| Percepción (4 CNN) | \(P(\text{fisura} \mid \text{imagen})\) |
+| Geometría (OpenCV) | Orientación del trazo (vertical / horizontal / inclinada / malla) |
+| Razonamiento (SE) | Elemento, ambiente, ancho opcional, patrón → severidad, mecanismo, plan, CF MYCIN |
 
-| Capa | Responsabilidad | Justificación |
-| --- | --- | --- |
-| Percepción (CNN) | Detectar presencia de fisura y emitir \(P(\text{fisura} \mid \text{imagen})\) | El patrón visual es un problema de visión; se valida con un test retenido de 600 imágenes. |
-| Razonamiento (sistema experto) | Interpretar ancho, elemento y ambiente según ACI 224R-01, ACI 318 y NEC-SE-HM | Los límites de servicio y las acciones de reparación son conocimiento normativo, no datos de ImageNet. |
-| Certeza (CF estilo MYCIN) | Combinar evidencia incierta (ML + medición + contexto) | La inspección de campo es incompleta; el dictamen debe ser trazable y no binario. |
-
-El modelo de visión **no sustituye** un peritaje estructural. El sistema experto **no inventa** anchos ni cargas: emite un dictamen de severidad, un factor de certeza combinado y un plan de acción, con las reglas disparadas a la vista del ingeniero.
-
-La memoria canónica del proyecto (propósito, rúbrica, estado y cómo retomar un chat) está en [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md). La especificación formal de la base de conocimiento está en [`docs/EXPERT_SYSTEM_SPEC.md`](docs/EXPERT_SYSTEM_SPEC.md).
-
----
-
-## 2. Arquitectura del sistema
-
-El flujo es **desacoplado**: la CNN no contiene reglas normativas y el motor experto no entrena pesos. La interfaz (Streamlit) solo orquesta entradas y presenta el diagnóstico.
-
-```mermaid
-flowchart LR
-    subgraph IN["1. Entrada"]
-        IMG["Imagen RGB<br/>elemento de hormigón"]
-        CTX["Contexto de inspección<br/>ancho mm · elemento · exposición"]
-    end
-
-    subgraph PRE["2. Preprocesamiento"]
-        RS["Resize 224×224"]
-        RG["RGB float32 [0, 255]"]
-        NRM["Normalización propia<br/>del backbone"]
-    end
-
-    subgraph CNN["3. Inferencia CNN"]
-        M1["CNN Custom"]
-        M2["MobileNetV2"]
-        M3["ResNet50V2"]
-        M4["EfficientNet-B0"]
-        P["P(fisura) ∈ [0, 1]"]
-    end
-
-    subgraph SE["4. Motor de inferencia experto"]
-        KB["Base de conocimiento<br/>ACI 224R / ACI 318 / NEC-SE-HM"]
-        IE["Encadenamiento hacia adelante"]
-        CF["Combinación de CF<br/>estilo MYCIN"]
-    end
-
-    subgraph OUT["5. Diagnóstico y plan de acción"]
-        SV["Severidad"]
-        CFo["CF combinado"]
-        PL["Mitigación y reparación"]
-        TR["Reglas disparadas"]
-    end
-
-    IMG --> RS --> RG --> NRM
-    NRM --> M1 & M2 & M3 & M4
-    M1 & M2 & M3 & M4 --> P
-    P --> IE
-    CTX --> IE
-    KB --> IE
-    IE --> CF --> SV & CFo & PL & TR
-```
-
-Flujo textual equivalente:
+El dictamen **no sustituye** un peritaje estructural.
 
 ```text
-[Imagen] --> [224×224 RGB] --> [CNN seleccionada] --> P(fisura)
-                                                      |
-[Ancho mm] [Tipo de elemento] [Ambiente] -------------+
-                                                      v
-                         [Motor experto + CF MYCIN]
-                                                      v
-              [Severidad | CF combinado | Plan de acción]
+Foto → 224×224 RGB → CNN → P(fisura)
+                         +
+              elemento, ambiente, (ancho), patrón
+                         ↓
+              Motor experto ACI/NEC + MYCIN
+                         ↓
+         Severidad | Mecanismo | Plan de acción | CF
 ```
 
 ---
 
-## 3. Estructura del repositorio
+## 2. Estructura del repositorio
 
 ```text
 crackexpert-ai/
 ├── data/
-│   ├── raw/                      # Puntero/cache del dataset Kaggle (no versionado)
-│   ├── processed/                # Subconjunto de entrenamiento
-│   ├── external_test/            # Fotos reales OOD
-│   └── inspections/              # Visitas de obra locales (JSON + JPG; no versionado)
-├── models/                       # Pesos .keras de las cuatro arquitecturas
+│   ├── raw/                 # Cache Kaggle (no versionar imágenes)
+│   ├── processed/           # Splits train/val/test
+│   ├── external_test/
+│   │   ├── Positive/        # OOD: hay fisura
+│   │   └── Negative/        # OOD: sana / negativos difíciles
+│   └── inspections/         # Visitas locales (JSON + JPG; no versionado)
+├── models/                  # *.keras (pesos grandes fuera de git)
 ├── reports/
-│   ├── figures/                  # Curvas, matrices, ROC, errores
-│   ├── models_comparison.csv     # Métricas cuantitativas del benchmark
-│   ├── experiments_log.md        # Bitácora de corridas
-│   └── TRAINING_RESULTS.md       # Informe acumulativo de entrenamientos
+│   ├── figures/             # Corrida vigente
+│   ├── archive/             # Snapshots de corridas anteriores
+│   ├── models_comparison.csv
+│   ├── experiments_log.md
+│   ├── external_test_comparison.csv / .md
+│   └── TRAINING_RESULTS.md
 ├── src/
-│   ├── data_loader.py            # kagglehub, muestreo, splits, tf.data
-│   ├── models.py                 # Fábrica de las 4 arquitecturas
-│   ├── train.py                  # Dos fases, EarlyStopping, checkpoints
-│   ├── evaluate.py               # Figuras, CSV y bitácora
-│   ├── expert_system.py          # Motor de reglas patológicas + CF
-│   ├── crack_geometry.py         # Orientación de la fisura (OpenCV)
-│   └── inspections.py            # Bitácora local de visitas
+│   ├── data_loader.py       # kagglehub, 8k, splits, augmentation solo train
+│   ├── models.py            # CNN custom, MobileNetV2, ResNet50V2, EfficientNet-B0
+│   ├── train.py             # 2 fases, EarlyStopping, checkpoints
+│   ├── evaluate.py          # Curvas, matrices, ROC, CSV, bitácora
+│   ├── archive.py           # Copia figures/CSV antes de pisarlos
+│   ├── expert_system.py     # Reglas + MYCIN
+│   ├── crack_geometry.py    # Orientación OpenCV
+│   └── inspections.py       # Bitácora de visitas
 ├── docs/
-│   ├── EXPERT_SYSTEM_SPEC.md     # Especificación formal del sistema experto
-│   └── PROJECT_CONTEXT.md        # Memoria del proyecto (estado y decisiones)
-├── .streamlit/config.toml        # Servidor LAN (0.0.0.0:8501)
-├── main.py                       # Orquestador: datos → train → evaluate
-├── app.py                        # Prototipo Streamlit (visita + fotos)
-├── run_app.py                    # Arranque para celular / LAN
-├── requirements.txt
-└── README.md
+│   ├── PROJECT_CONTEXT.md
+│   ├── EXPERT_SYSTEM_SPEC.md
+│   └── INFORME_CONTINUACION.md
+├── main.py                  # Pipeline experimental end-to-end
+├── test_external.py         # Evaluación OOD (anexa corridas)
+├── app.py                   # Streamlit
+├── run_app.py               # Streamlit en LAN (celular)
+└── requirements.txt
 ```
 
-| Módulo | Rol |
-| --- | --- |
-| `src/data_loader.py` | Descarga `arunrk7/surface-crack-detection`, submuestrea, parte con `random_state=42` y construye `tf.data` (augmentation solo en train). |
-| `src/models.py` | Define CNN Custom, MobileNetV2, ResNet50V2 y EfficientNet-B0; preprocesado ImageNet serializable. |
-| `src/train.py` | Fase 1 (LR \(10^{-3}\), backbone congelado) y Fase 2 (LR \(10^{-5}\), fine-tuning); EarlyStopping `patience=5`. |
-| `src/evaluate.py` | Test independiente: accuracy, precision, recall, F1, ROC-AUC, latencia y figuras. |
-| `src/expert_system.py` | Encadenamiento hacia adelante sobre ACI/NEC y combinación de factores de certeza. |
-| `src/crack_geometry.py` | Estima si el trazo es vertical, horizontal, inclinado o malla (sin reentrenar la CNN). |
-| `src/inspections.py` | Guarda visitas (lugar + hora) y fotos con dictamen en `data/inspections/`. |
-| `main.py` | Reproduce el experimento completo en un solo comando. |
-| `app.py` | Visita de obra: foto + elemento + ambiente por foto; dictamen llano. |
-| `run_app.py` | Publica Streamlit en la red local e intenta liberar el puerto 8501. |
-
 ---
 
-## 4. Metodología y dataset
+## 3. Dataset y protocolo ML
 
-**Fuente.** [Surface Crack Detection](https://www.kaggle.com/datasets/arunrk7/surface-crack-detection) (`arunrk7/surface-crack-detection`): imágenes de superficies de hormigón etiquetadas `Positive` (fisura) y `Negative` (sin fisura).
+**Fuente:** [Surface Crack Detection](https://www.kaggle.com/datasets/arunrk7/surface-crack-detection) (`arunrk7/surface-crack-detection`).
 
-**Subconjunto experimental.** Se extraen **exactamente 4.000** imágenes para controlar cómputo, equilibrio de clases y sobreajuste:
-
-| Clase | Imágenes |
-| --- | ---: |
-| Positive (fisura) | 2.000 |
-| Negative (sana) | 2.000 |
-| **Total** | **4.000** |
-
-**Partición estratificada** (`sklearn.model_selection.train_test_split`, `random_state=42`):
-
-| Split | Proporción | Imágenes | Positive | Negative | Uso |
+| Protocolo | Total | Train (70 %) | Val (15 %) | Test (15 %) | Estado |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Train | 70 % | 2.800 | 1.400 | 1.400 | Ajuste de pesos |
-| Validation | 15 % | 600 | 300 | 300 | EarlyStopping y selección intra-entrenamiento |
-| Test | 15 % | 600 | 300 | 300 | Evaluación **independiente y retenida** |
+| Corrida 1 | 4.000 (2k/2k) | 2.800 | 600 | 600 | **Hecha** |
+| Corrida 2 | 8.000 (4k/4k) | 5.600 | 1.200 | 1.200 | Código listo; entrenar con `main.py` |
 
-**Política anti *data leakage***
+Semilla fija `random_state=42`. Augmentation **solo train** (Flip, Rotation 0,1, Zoom 0,1, Brightness 0,1). Val y test: resize 224×224 RGB, sin aumento.
 
-- El test **no** se usa para early stopping, fine-tuning ni selección de umbral.
-- **Data augmentation exclusiva de train:** `RandomFlip`, `RandomRotation(0.1)`, `RandomZoom(0.1)`, `RandomBrightness(0.1)`.
-- Validación y test solo se redimensionan a **224×224 RGB** (rango \([0, 255]\)). No hay flip, rotación ni zoom en esos splits.
-- El muestreo y los índices de partición son deterministas (semilla 42), de modo que las corridas son reproducibles.
+**Cuatro arquitecturas** (Adam, `binary_crossentropy`, EarlyStopping `val_loss` patience 5):
 
-**Entrenamiento común.** Optimizador Adam, pérdida `binary_crossentropy`, `EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)`. Transfer learning en dos fases (excepto la CNN Custom, que se refina a LR bajo en fase 2 sobre toda la red).
+| Modelo | Estrategia | Fine-tuning fase 2 |
+| --- | --- | --- |
+| CNN personalizada | Desde cero, 3 bloques Conv+BN+Pool+Dropout | Red completa, LR \(10^{-5}\) |
+| MobileNetV2 | ImageNet, fase 1 congelada LR \(10^{-3}\) | 25 capas |
+| ResNet50V2 | Idem | 20 capas |
+| EfficientNet-B0 | Idem | 20 capas |
 
----
-
-## 5. Benchmark de modelos evaluados
-
-Se comparan **cuatro** arquitecturas sobre el mismo split y el mismo protocolo:
-
-| ID | Arquitectura | Estrategia | Fine-tuning (fase 2) |
-| --- | --- | --- | --- |
-| 1 | CNN personalizada | Entrenamiento desde cero (3 bloques Conv2D + BatchNorm + MaxPool + Dropout + Dense) | Red completa, LR \(10^{-5}\) |
-| 2 | MobileNetV2 | Transfer learning ImageNet | Últimas **25** capas, LR \(10^{-5}\) |
-| 3 | ResNet50V2 | Transfer learning ImageNet | Últimas **20** capas, LR \(10^{-5}\) |
-| 4 | EfficientNet-B0 | Transfer learning ImageNet | Últimas **20** capas, LR \(10^{-5}\) |
-
-Fase 1 (todas las redes de transferencia): backbone congelado, LR \(10^{-3}\), se entrena la cabeza binaria (`sigmoid`).
-
-**Criterio de selección del modelo óptimo** (implementado en `src/evaluate.py`):
-
-1. Maximizar **F1-Score** en el test retenido (equilibrio precisión / exhaustividad).
-2. Desempatar por **ROC-AUC**.
-3. Desempatar por **menor latencia** (ms/imagen).
-
-La tabla cuantitativa se escribe en `reports/models_comparison.csv` con las columnas:
-
-`Modelo`, `Parametros_Totales`, `Tamano_MB`, `Latencia_ms`, `Val_Accuracy`, `Test_Accuracy`, `Precision`, `Recall`, `F1_Score`, `ROC_AUC`.
-
-Las figuras de soporte (`reports/figures/`) incluyen curvas de aprendizaje por modelo, matrices de confusión en test, ROC superpuestas y ejemplos de falsos positivos / falsos negativos.
+**Selección de modelo:** F1 y AUC en test Kaggle **más** F1/recall OOD, latencia y tamaño. No basarse solo en el benchmark saturado.
 
 ---
 
-## 6. Guía de instalación y ejecución
+## 4. Resultados vigentes
 
-Requisitos: Python 3.10+, cuenta de Kaggle configurada para `kagglehub` (token en `~/.kaggle/kaggle.json` o variables de entorno equivalentes).
+Detalle y figuras: [`reports/TRAINING_RESULTS.md`](reports/TRAINING_RESULTS.md).
 
-### 6.1. Entorno virtual
+### 4.1. Test Kaggle (corrida 4k, \(n=600\))
 
-**Windows (PowerShell)**
+| Modelo | Test Acc | F1 | ROC-AUC | Latencia (ms) | Tamaño (MB) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| CNN personalizada | 1,000 | 1,000 | 1,000 | 6,4 | 1,3 |
+| MobileNetV2 | 0,997 | 0,997 | 1,000 | 11,1 | 19,5 |
+| ResNet50V2 | 1,000 | 1,000 | 1,000 | 22,3 | 150,6 |
+| EfficientNet-B0 | 1,000 | 1,000 | 1,000 | 14,0 | 26,5 |
+
+### 4.2. Fotos reales OOD (16 ago 2026, \(n=71\))
+
+| Modelo | Accuracy | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: |
+| CNN personalizada | 0,338 | 0,298 | 0,708 | **0,420** |
+| MobileNetV2 | 0,324 | 0,227 | 0,417 | 0,294 |
+| ResNet50V2 | 0,310 | 0,121 | 0,167 | 0,140 |
+| EfficientNet-B0 | 0,183 | 0,095 | 0,167 | 0,121 |
+
+Accuracy OOD es engañosa (24 fisura / 47 sanas). En el informe se defienden **F1 y recall** y el contraste con Kaggle.
+
+---
+
+## 5. Instalación y comandos
+
+Python 3.10+. Kagglehub requiere token (`~/.kaggle/kaggle.json`).
 
 ```powershell
 cd CrackExpertAI
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-**Linux / macOS**
-
-```bash
-cd CrackExpertAI
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 6.2. Reproducir el pipeline experimental
-
-Un solo comando descarga el dataset (si no está en caché), materializa el subconjunto 4.000, entrena las cuatro redes y genera métricas y figuras:
-
-```bash
-python main.py
-```
-
-Salidas esperadas:
-
-- `models/<nombre>.keras`
-- `reports/figures/learning_curves_<modelo>.png`
-- `reports/figures/confusion_matrix_<modelo>.png`
-- `reports/figures/roc_curves_comparison.png`
-- `reports/figures/misclassified_examples.png`
-- `reports/models_comparison.csv`
-- `reports/experiments_log.md`
-
-### 6.3. Interfaz interactiva
-
-En este PC:
-
-```bash
-streamlit run app.py
-```
-
-**Desde el celular (misma WiFi):** no use `localhost`. Arranque así para publicar en la LAN, intentar abrir el firewall y mostrar la IP:
-
-```bash
-python run_app.py
-```
-
-Abra en el teléfono `http://<IP-que-imprime-el-script>:8501`. Si la página no carga, permita TCP 8501 en el firewall de Windows (el script lo indica) o use un hotspot del portátil (muchas WiFi de campus aíslan los clientes). En HTTP, en el celular use **Examinar → Cámara / Tomar foto** (la cámara en vivo del navegador exige HTTPS).
-
-**Uso en campo (visita de obra)**
-
-1. Escriba el nombre del lugar y pulse **Empezar visita** (o reabra una visita anterior).  
-2. Por cada foto: imagen + tipo de elemento + **ambiente de esa foto** (baño húmedo y fachada seca pueden ir en la misma visita).  
-3. **Guardar en la visita:** la CNN detecta fisura; OpenCV estima la orientación; el sistema experto emite un dictamen en lenguaje llano.  
-4. El registro queda en este PC: `data/inspections/<visita>/visit.json` y fotos JPG. El detalle técnico (CF, reglas, JSON) está en un expander.
-
-Memoria de decisiones y estado del repo: [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md).
-
----
-
-## 7. Especificación resumida del sistema experto
-
-Detalle normativo, reglas SI–ENTONCES y fórmulas MYCIN: [`docs/EXPERT_SYSTEM_SPEC.md`](docs/EXPERT_SYSTEM_SPEC.md).
-
-### 7.1. Variables de entrada
-
-| Variable | Dominio | Origen |
-| --- | --- | --- |
-| Probabilidad de fisura \(P\) | \([0, 1]\) | Salida `sigmoid` de la CNN |
-| Orientación del trazo | vertical, horizontal, inclinada, malla | OpenCV sobre la foto; se mapea a `patron_orientacion` |
-| Ancho de fisura \(w\) | mm (SI), opcional | Fuera del flujo de campo; si falta, evidencia incompleta |
-| Tipo de elemento | Viga, Columna, Losa, Muro | Inspector (por foto) |
-| Ambiente de exposición | Interior seco; Exterior húmedo; Marino / agresivo | Inspector **por foto** (una visita puede mezclar ambientes) |
-
-### 7.2. Variables de salida
-
-| Variable | Dominio |
+| Comando | Efecto |
 | --- | --- |
-| Nivel de severidad | Leve / estética · Moderada / durabilidad · Crítica / estructural |
-| Factor de certeza combinado \(\mathrm{CF}_{\mathrm{comb}}\) | \([-1, 1]\) |
-| Medidas de mitigación y reparación | Lista priorizada, trazable a reglas disparadas |
+| `python main.py` | Archiva corrida previa → datos 8k → entrena 4 modelos → métricas → OOD |
+| `python test_external.py` | Evalúa `data/external_test/Positive` y `Negative`; **anexa** CSV/MD |
+| `python run_app.py` | Streamlit en LAN (`http://<IP>:8501`) para el celular |
+| `streamlit run app.py` | Mismo prototipo, solo localhost |
 
-### 7.3. Factores de certeza (visión general)
-
-Cada regla \(R_i\) posee un **CF base** \(\mathrm{CF}_i \in [-1, 1]\) que expresa la confianza del experto normativo en la conclusión **si** las premisas son ciertas. La evidencia incierta (p. ej. \(P\) del clasificador, calidad de la medición de \(w\)) atenúa ese CF. Varias reglas que concluyen la misma hipótesis se combinan con las fórmulas clásicas de MYCIN (véase la especificación).
-
-**Límites de ancho de referencia (ACI 224R-01 Tabla 4.1), usados como umbrales de durabilidad:**
-
-| Ambiente de exposición (interfaz) | Condición ACI 224R | \(w_{\max}\) (mm) |
-| --- | --- | ---: |
-| Interior seco | Aire seco o membrana protectora | 0,41 |
-| Exterior húmedo | Humedad, aire húmedo, suelo | 0,30 |
-| Marino / agresivo | Agua de mar / ciclo húmedo-seco | 0,15 |
-
-Valores adicionales de la misma tabla (sales de deshielo 0,18 mm; depósitos 0,10 mm) se documentan en la especificación y pueden activarse como subcasos del ambiente agresivo.
+Fotos OOD: JPEG en `Positive/` (fisura) y `Negative/` (sana o trampa: junta, mancha, textura).
 
 ---
 
-## 8. Alcance y limitaciones
+## 6. Sistema experto (resumen)
 
-- El dataset público caracteriza **presencia/ausencia** de fisura superficial, no el mecanismo estructural ni el ancho real en milímetros.
-- La orientación OpenCV es una estimación 2D en el plano de la foto; no sustituye el criterio del inspector si la toma está sesgada.
-- El dictamen experto es un **apoyo a la decisión** y no un certificado de estabilidad.
-- Las visitas se guardan solo en el equipo (`data/inspections/`); no hay nube ni multi-usuario.
-- La latencia y el tamaño de modelo se reportan para comparación académica; el despliegue en obra puede exigir cuantización u hardware específico.
+| Entrada | Origen |
+| --- | --- |
+| \(P_{\mathrm{ML}}\) | CNN |
+| Patrón / orientación | OpenCV o inspector |
+| Elemento | Viga, columna, losa, muro |
+| Ambiente | Interior seco (\(w_{\max}=0{,}41\) mm), exterior húmedo (0,30), marino (0,15 en código / 0,18 en brief) |
+| Ancho mm | Opcional; en campo suele omitirse |
 
-## 9. Licencia y uso académico
+Salidas: Leve / Moderada / Crítica, mecanismo (cortante, flexión, torsión, corrosión, retracción, etc.), cita normativa, plan de acción, \(\mathrm{CF}_{\mathrm{comb}}\).
 
-Proyecto desarrollado con fines formativos en la asignatura de Sistemas Expertos, PUCE Sede Manabí. Las normas ACI y NEC se citan como **referencias técnicas**; su aplicación profesional requiere el texto oficial vigente y un ingeniero civil responsable.
+---
+
+## 7. Alcance y limitaciones
+
+- Kaggle etiqueta **presencia/ausencia**, no mecanismo ni ancho en mm.  
+- F1 ≈ 1,0 en ese dominio no implica generalización a celular.  
+- OpenCV estima orientación 2D; no detecta helicoidal.  
+- El SE es **alerta de protocolo**, no certificado de estabilidad.  
+- Las visitas viven solo en este PC (`data/inspections/`).
+
+## 8. Uso académico
+
+Proyecto formativo, Sistemas Expertos, PUCE Sede Manabí. ACI y NEC se citan como referencia; su aplicación profesional exige el texto oficial y un ingeniero civil responsable.

@@ -211,7 +211,7 @@ Anexos (código, arquitectura).
 | `test_external.py` comparativo + anexar corridas | Hecho |
 | Motor experto + `patron_orientacion` + MYCIN | Hecho |
 | Orientación OpenCV (`src/crack_geometry.py`) + mapeo al SE | Hecho |
-| App flujo simple (foto + elemento + ambiente por foto) | Hecho |
+| App flujo simple (foto + elemento + ambiente + 9 cartas de campo) | Hecho |
 | Acceso LAN / celular (`run_app.py`, config Streamlit) | Hecho (firewall Windows a veces pide admin; WiFi de campus puede aislar clientes) |
 | Bitácora de visitas `data/inspections/` (`src/inspections.py`) | Hecho |
 | Capturas móvil + evidencias para informe §8 | Hecho (en el Word, 16 ago noche) |
@@ -221,7 +221,7 @@ Anexos (código, arquitectura).
 
 1. Abrir o crear **visita** (nombre del lugar; la hora la pone el sistema).  
 2. Cada foto: imagen + elemento + ambiente de **esa** foto.  
-3. Guardar: CNN + geometría + SE; queda JPG + `visit.json`.  
+3. Generar: CNN + geometría; si hay fisura, **9 cartas** (Sí/No/No lo sé). Luego el SE; queda JPG + `visit.json`.  
 4. Resumen de la visita (conteo por severidad). Reabrir visitas anteriores en el mismo PC.
 
 **Números OOD a citar (no inventar otros):**

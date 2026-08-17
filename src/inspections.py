@@ -115,6 +115,7 @@ def add_record(
     ambiente: str,
     perception: dict[str, Any],
     expert_verdict: dict[str, Any],
+    field_answers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     visit = load_visit(visit_id)
     n = len(visit.get("records", [])) + 1
@@ -136,6 +137,7 @@ def add_record(
         "image_file": rel,
         "perception": perception,
         "expert_verdict": expert_verdict,
+        "field_answers": dict(field_answers or {}),
     }
     visit.setdefault("records", []).append(record)
     visit["updated_at"] = _now_iso()

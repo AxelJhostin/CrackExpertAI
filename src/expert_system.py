@@ -50,6 +50,56 @@ ML_CRACK_THRESHOLD: float = 0.50
 GROSS_WIDTH_MM: float = 1.0
 CF_PATTERN_OBS: float = 0.85
 CF_FACT_DECLARED: float = 1.0
+CF_FIELD_OBS: float = 0.80
+UNKNOWN_ANSWER = "No lo sé"
+
+FIELD_QUESTIONS: tuple[dict[str, object], ...] = (
+    {
+        "id": "ubicacion",
+        "text": "¿Dónde está la grieta?",
+        "options": ("En el apoyo", "En el medio", "En una junta", UNKNOWN_ANSWER),
+    },
+    {
+        "id": "malla",
+        "text": "¿Es una sola grieta o varias en red?",
+        "options": ("Una sola", "Varias en red", UNKNOWN_ANSWER),
+    },
+    {
+        "id": "humedad",
+        "text": "¿Está húmeda, gotea o hay mancha de agua?",
+        "options": ("Sí", "No", UNKNOWN_ANSWER),
+    },
+    {
+        "id": "oxido_desprendimiento",
+        "text": "¿Hay óxido o se cae el concreto?",
+        "options": ("Óxido", "Se desprende el concreto", "Ambos", "No", UNKNOWN_ANSWER),
+    },
+    {
+        "id": "antiguedad",
+        "text": "¿Hace cuánto la notaste?",
+        "options": ("Días", "Semanas o meses", "Años", UNKNOWN_ANSWER),
+    },
+    {
+        "id": "sismo",
+        "text": "¿Hubo un temblor reciente?",
+        "options": ("Sí", "No", UNKNOWN_ANSWER),
+    },
+    {
+        "id": "carga_arriba",
+        "text": "¿Hay más pisos o carga arriba de este elemento?",
+        "options": ("Sí", "No", UNKNOWN_ANSWER),
+    },
+    {
+        "id": "evolucion",
+        "text": "¿Crece o está igual?",
+        "options": ("Crece", "Está igual", UNKNOWN_ANSWER),
+    },
+    {
+        "id": "pasante",
+        "text": "¿La grieta pasa al otro lado del elemento?",
+        "options": ("Sí", "No", UNKNOWN_ANSWER),
+    },
+)
 
 ACI_224R_LIMITS_MM: dict[Exposure, float] = {
     Exposure.INTERIOR_SECO: 0.41,
@@ -78,6 +128,7 @@ class CrackObservation:
     through_crack: bool = False
     rust_stains: bool = False
     spalling: bool = False
+    field_answers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -106,6 +157,7 @@ class ExpertVerdict:
     max_allowed_width_mm: float
     fired_rules: list[FiredRule] = field(default_factory=list)
     notes: str = ""
+    headline: str = ""
 
 
 def cf_from_ml(probability: float) -> float:
@@ -214,7 +266,10 @@ def observation_from_form(
     through_crack: bool = False,
     rust_stains: bool = False,
     spalling: bool = False,
+    field_answers: dict[str, str] | None = None,
 ) -> CrackObservation:
+    answers = dict(field_answers or {})
+    flags = flags_from_field_answers(answers)
     return CrackObservation(
         ml_probability=float(ml_probability),
         elemento=_parse_enum(ElementType, elemento),  # type: ignore[arg-type]
@@ -222,10 +277,135 @@ def observation_from_form(
         patron_orientacion=_parse_enum(PatronOrientacion, patron_orientacion),  # type: ignore[arg-type]
         ancho_mm=ancho_mm,
         calidad_ancho=max(0.0, min(1.0, calidad_ancho)),
-        through_crack=through_crack,
-        rust_stains=rust_stains,
-        spalling=spalling,
+        through_crack=through_crack or flags["through_crack"],
+        rust_stains=rust_stains or flags["rust_stains"],
+        spalling=spalling or flags["spalling"],
+        field_answers=answers,
     )
+
+
+def flags_from_field_answers(answers: dict[str, str]) -> dict[str, bool]:
+    """Traduce Sí/No de campo a banderas ya usadas por R3b/R4/R5. 'No lo sé' no dispara."""
+    q4 = answers.get("oxido_desprendimiento", UNKNOWN_ANSWER)
+    return {
+        "through_crack": answers.get("pasante") == "Sí",
+        "rust_stains": q4 in {"Óxido", "Ambos"},
+        "spalling": q4 in {"Se desprende el concreto", "Ambos"},
+    }
+
+
+def patron_with_field_answers(patron: str, answers: dict[str, str] | None) -> str:
+    """Si el inspector marca malla, el patrón de foto no manda sobre esa observación."""
+    if (answers or {}).get("malla") == "Varias en red":
+        return PatronOrientacion.MALLA.value
+    return patron
+
+
+def _ans(answers: dict[str, str] | None, key: str) -> str | None:
+    value = (answers or {}).get(key)
+    if not value or value == UNKNOWN_ANSWER:
+        return None
+    return value
+
+
+def compose_headline(obs: CrackObservation, severity: ReportSeverity, has_crack: bool) -> str:
+    """Mensaje llano para la app: mezcla foto, elemento y las 9 respuestas."""
+    if not has_crack:
+        return "En esta foto no se ve una fisura clara. Siga con la inspección habitual."
+
+    a = obs.field_answers or {}
+    el = obs.elemento.value.lower()
+    parts: list[str] = []
+
+    if obs.spalling:
+        parts.append("Se está cayendo concreto: ya no es solo una fisura de superficie.")
+    elif _ans(a, "sismo") == "Sí" and obs.elemento == ElementType.COLUMNA:
+        parts.append("Hubo un temblor y la fisura está en una columna: un ingeniero debe verla pronto.")
+    elif _ans(a, "sismo") == "Sí":
+        parts.append("La relacionó con un temblor reciente: no la trate como una grieta de curado.")
+    elif _ans(a, "ubicacion") == "En el apoyo" and obs.elemento == ElementType.VIGA:
+        parts.append("Está en el apoyo de la viga: eso apunta más a cortante que a una grieta del medio del vano.")
+    elif obs.patron_orientacion == PatronOrientacion.DIAGONAL_APOYOS:
+        parts.append(f"El patrón en diagonal en este {el} sugiere un mecanismo serio (cortante). Un ingeniero debe revisarlo.")
+    elif obs.rust_stains:
+        parts.append("Hay óxido a la vista: el acero puede estar perdiendo protección.")
+    elif _ans(a, "humedad") == "Sí" or _ans(a, "pasante") == "Sí":
+        parts.append("Hay agua o la grieta atraviesa el elemento: el riesgo es filtración y corrosión, no solo que se vea mal.")
+    elif _ans(a, "evolucion") == "Crece":
+        parts.append("Dijo que la grieta crece: el mecanismo sigue activo.")
+    elif _ans(a, "malla") == "Varias en red":
+        parts.append("Varias grietas en red suelen ser de retracción o mal curado, no de cortante.")
+    elif _ans(a, "ubicacion") == "En una junta":
+        parts.append("Si sigue una junta, no la interprete sola como falla del alma a 45°.")
+    elif _ans(a, "carga_arriba") == "Sí" and obs.elemento == ElementType.COLUMNA:
+        parts.append("Hay pisos o carga arriba de esta columna: hay que mirar si se está aplastando.")
+
+    if severity == ReportSeverity.CRITICA and not parts:
+        parts.append("Con la foto y lo que marcó en campo, el mecanismo se ve serio. Un ingeniero debe revisar el elemento.")
+    elif severity == ReportSeverity.MODERADA and not parts:
+        parts.append("Hay fisura y, con lo respondido, puede afectar durabilidad (agua, corrosión o que siga abriéndose). Conviene actuar pronto.")
+    elif severity == ReportSeverity.LEVE and not parts:
+        parts.append("Hay una fisura, pero con lo que respondió el riesgo inmediato parece bajo. Conviene vigilarla.")
+    elif severity == ReportSeverity.CRITICA and parts and "ingeniero" not in parts[0].lower():
+        parts.append("Un ingeniero debe revisar el elemento; no basta sellar.")
+    elif severity == ReportSeverity.MODERADA and len(parts) == 1 and _ans(a, "evolucion") != "Crece":
+        if _ans(a, "antiguedad") == "Años":
+            parts.append("Lleva años: mire más el deterioro acumulado (óxido, recubrimiento) que un evento de ayer.")
+        elif _ans(a, "antiguedad") == "Días" and _ans(a, "sismo") != "Sí":
+            parts.append("Es reciente: conviene marcarla y volver a verla en pocos días.")
+
+    return " ".join(parts[:2])
+
+
+def compose_action_plan(
+    obs: CrackObservation,
+    severity: ReportSeverity,
+    has_crack: bool,
+    fired_actions: list[str],
+) -> list[str]:
+    """Qué hacer, en orden de lo que el inspector acaba de marcar."""
+    if not has_crack:
+        return ["Mantener la inspección rutinaria; si más adelante aparece una fisura, fotografíela de frente y de cerca."]
+
+    a = obs.field_answers or {}
+    out: list[str] = []
+
+    def add(text: str) -> None:
+        if text and text not in out:
+            out.append(text)
+
+    if severity == ReportSeverity.CRITICA:
+        add("Delimite la zona y avise a un ingeniero civil. No se limite a pintar o sellar.")
+    if _ans(a, "sismo") == "Sí":
+        add("Revise nudos y columnas, y fíjese si hay fisuras horizontales en elementos verticales (posible daño del temblor).")
+    if _ans(a, "ubicacion") == "En el apoyo" and obs.elemento == ElementType.VIGA:
+        add("En el apoyo mire estribos, alma y el nudo viga-columna; no lo trate como grieta estética del vano.")
+    if obs.spalling:
+        add("Delimite el concreto suelto y no deje el acero al aire; hay que ver qué sección queda.")
+    if obs.rust_stains:
+        add("Anote las manchas de óxido y, si puede, el recubrimiento. La corrosión ya se ve.")
+    if _ans(a, "humedad") == "Sí" or _ans(a, "pasante") == "Sí":
+        add("Busque de dónde viene el agua, mire el otro lado del elemento, seque y selle.")
+    if _ans(a, "evolucion") == "Crece":
+        add("Ponga testigos (yeso o vidrio) y tome otra foto con una regla en unos días, para ver si sigue abriéndose.")
+    if _ans(a, "carga_arriba") == "Sí" and obs.elemento == ElementType.COLUMNA:
+        add("Hay carga de pisos arriba: mire desprendimiento o fisuras verticales de aplastamiento.")
+    if _ans(a, "malla") == "Varias en red":
+        add("Si es malla de retracción, controle humedad y selle si hay filtración; no la confunda con cortante.")
+    if _ans(a, "ubicacion") == "En una junta":
+        add("Revise el sellado de la junta; una junta abierta no es lo mismo que una grieta a 45° en el alma.")
+    if _ans(a, "antiguedad") == "Años" and obs.ambiente != Exposure.INTERIOR_SECO:
+        add("Como lleva años y el ambiente no es interior seco, priorice corrosión y recubrimiento.")
+    if severity in {ReportSeverity.MODERADA, ReportSeverity.LEVE}:
+        add("Tome una foto de frente, de cerca, con una regla o una moneda para comparar en la próxima visita.")
+    if severity == ReportSeverity.LEVE and _ans(a, "evolucion") != "Crece":
+        add("Si no crece y no hay agua ni óxido, puede esperar a la siguiente inspección, pero no la pierda de vista.")
+
+    for action in fired_actions:
+        add(action)
+        if len(out) >= 5:
+            break
+    return out[:5]
 
 
 def evaluate_pathology(obs: CrackObservation) -> ExpertVerdict:
@@ -256,10 +436,11 @@ def evaluate_pathology(obs: CrackObservation) -> ExpertVerdict:
             cf_combined=round(rule.cf_contrib, 4),
             mechanism=rule.mechanism,
             normative_basis=rule.normative_basis,
-            action_plan=rule.actions,
+            action_plan=compose_action_plan(obs, ReportSeverity.NONE, False, rule.actions),
             max_allowed_width_mm=limit,
             fired_rules=fired,
             notes="El motor experto no interpreta ancho ni patrón si la CNN no detecta fisura.",
+            headline=compose_headline(obs, ReportSeverity.NONE, False),
         )
 
     # --- Percepción ---
@@ -396,6 +577,7 @@ def evaluate_pathology(obs: CrackObservation) -> ExpertVerdict:
 
     # --- Patrón / orientación (variable patron_orientacion) ---
     fired.extend(_rules_patron(obs, cf_p, cf_el, cf_amb, cf_pat, cf_w, limit))
+    fired.extend(_rules_field_interview(obs, cf_p, cf_el, cf_amb))
 
     winner = max(fired, key=lambda r: (_SEVERITY_RANK[r.severity], r.cf_contrib))
     supporting = [r.cf_contrib for r in fired if r.severity == winner.severity and r.cf_contrib > 0]
@@ -420,13 +602,14 @@ def evaluate_pathology(obs: CrackObservation) -> ExpertVerdict:
         cf_combined=round(float(cf_comb), 4),
         mechanism=mechanism,
         normative_basis=" | ".join(norms),
-        action_plan=actions,
+        action_plan=compose_action_plan(obs, winner.severity, True, actions),
         max_allowed_width_mm=limit,
         fired_rules=fired,
         notes=(
             "Dictamen de apoyo a la decisión. No calcula capacidad residual φVn ni sustituye "
             "al ingeniero civil responsable. CF combinado estilo MYCIN sobre la hipótesis de severidad ganadora."
         ),
+        headline=compose_headline(obs, winner.severity, True),
     )
 
 
@@ -615,6 +798,173 @@ def _rules_patron(
     return rules
 
 
+def _known(answers: dict[str, str], key: str) -> str | None:
+    return _ans(answers, key)
+
+
+def _rules_field_interview(
+    obs: CrackObservation,
+    cf_p: float,
+    cf_el: float,
+    cf_amb: float,
+) -> list[FiredRule]:
+    """Reglas de las 9 preguntas de campo. 'No lo sé' no dispara (no inventa evidencia)."""
+    answers = obs.field_answers or {}
+    if not answers:
+        return []
+    cf_f = CF_FIELD_OBS
+    prem = [max(0.0, cf_p), cf_f, cf_el]
+    rules: list[FiredRule] = []
+    e = obs.elemento
+
+    loc = _known(answers, "ubicacion")
+    if loc == "En el apoyo" and e == ElementType.VIGA:
+        sev = (
+            ReportSeverity.CRITICA
+            if obs.patron_orientacion == PatronOrientacion.DIAGONAL_APOYOS
+            else ReportSeverity.MODERADA
+        )
+        rules.append(
+            _emit(
+                "R-F1",
+                "SI grieta en el apoyo de viga ENTONCES sospecha de cortante (no solo flexión de vano).",
+                0.82,
+                prem,
+                sev,
+                "Zona de apoyo: cortante / tensión diagonal más probable que flexión de centro de vano.",
+                "ACI 318 (cortante en vigas, zona de apoyos); NEC-SE-HM.",
+                ["Revisar alma, estribos y nudo en el apoyo; no tratarlo como fisura estética de vano."],
+            )
+        )
+    elif loc == "En el medio" and e in {ElementType.VIGA, ElementType.LOSA}:
+        rules.append(
+            _emit(
+                "R-F1b",
+                "SI grieta en el medio del vano ENTONCES compatible con flexión.",
+                0.70,
+                prem,
+                ReportSeverity.LEVE,
+                "Centro de vano: mecanismo flexional más coherente que cortante de apoyo.",
+                "ACI 318 (fisuración por flexión); ACI 224R-01.",
+                ["Contrastar ancho con w_max de exposición y vigilar flecha."],
+            )
+        )
+    elif loc == "En una junta":
+        rules.append(
+            _emit(
+                "R-F1c",
+                "SI la grieta sigue una junta ENTONCES no interpretarla como cortante de alma.",
+                0.72,
+                prem,
+                ReportSeverity.LEVE,
+                "Junta de construcción o encuentro: fisura preferencial, no necesariamente mecanismo frágil.",
+                "ACI 224R-01 (juntas y fisuración); NEC-SE-HM.",
+                ["Revisar sellado de junta; no confundir con cortante a 45° en el alma."],
+            )
+        )
+
+    if _known(answers, "humedad") == "Sí":
+        rules.append(
+            _emit(
+                "R-F3",
+                "SI hay humedad, goteo o mancha de agua ENTONCES al menos Moderada (filtración).",
+                0.78,
+                prem + [cf_amb],
+                ReportSeverity.MODERADA,
+                "Humedad visible: camino de filtración y riesgo de corrosión/lixiviación.",
+                "ACI 224R-01 (exposición húmeda); NEC-SE-HM (durabilidad).",
+                ["Sellar, rastrear la filtración y secar el elemento antes de un recubrimiento."],
+            )
+        )
+
+    antiguedad = _known(answers, "antiguedad")
+    if antiguedad == "Años":
+        rules.append(
+            _emit(
+                "R-F5",
+                "SI se observó hace años ENTONCES durabilidad crónica (no emergencia nueva por sí sola).",
+                0.65,
+                prem,
+                ReportSeverity.MODERADA,
+                "Fisura antigua: más relevante el deterioro acumulado que un evento único reciente.",
+                "ACI 224R-01 (evolución y durabilidad).",
+                ["Comparar con fotos viejas; priorizar corrosión y recubrimiento si el ambiente es agresivo."],
+            )
+        )
+    elif antiguedad == "Días" and _known(answers, "sismo") == "Sí":
+        rules.append(
+            _emit(
+                "R-F5b",
+                "SI apareció hace días Y hubo temblor reciente ENTONCES posible daño sísmico.",
+                0.84,
+                prem,
+                ReportSeverity.CRITICA if e == ElementType.COLUMNA else ReportSeverity.MODERADA,
+                "Aparición post-sismo: no atribuir a retracción de curado.",
+                "NEC-SE-DS / NEC-SE-HM (demanda sísmica); ACI 318 (nudos y columnas).",
+                ["Inspeccionar nudos y elementos verticales; no limitarse al sellado."],
+            )
+        )
+
+    if _known(answers, "sismo") == "Sí" and antiguedad != "Días":
+        sev = ReportSeverity.CRITICA if e == ElementType.COLUMNA else ReportSeverity.MODERADA
+        rules.append(
+            _emit(
+                "R-F6",
+                "SI hubo temblor reciente ENTONCES elevar la alerta (sobre todo en columna).",
+                0.80,
+                prem,
+                sev,
+                "Demanda sísmica reciente: posible flexo-tracción o daño en nudos.",
+                "NEC-SE-DS / NEC-SE-HM; ACI 318 (columnas y nudos).",
+                ["Revisar columnas, nudos y fisuras horizontales; evaluación estructural si hay duda."],
+            )
+        )
+
+    if _known(answers, "carga_arriba") == "Sí" and e == ElementType.COLUMNA:
+        rules.append(
+            _emit(
+                "R-F7",
+                "SI hay pisos o carga arriba Y el elemento es columna ENTONCES atención a compresión.",
+                0.76,
+                prem,
+                ReportSeverity.MODERADA,
+                "Columna con carga de pisos superiores: fisuración vertical más coherente con aplastamiento.",
+                "ACI 318 (elementos a compresión); NEC-SE-HM.",
+                ["Revisar desprendimiento, esbeltez y confinamiento; no tratarlo como retracción de losa."],
+            )
+        )
+
+    if _known(answers, "evolucion") == "Crece":
+        rules.append(
+            _emit(
+                "R-F8",
+                "SI la grieta crece ENTONCES al menos Moderada (mecanismo activo).",
+                0.83,
+                prem,
+                ReportSeverity.MODERADA,
+                "Evolución activa: el ancho o la longitud no se han estabilizado.",
+                "ACI 224R-01 (monitoreo de fisuras); NEC-SE-HM.",
+                ["Colocar testigos, fotografiar con escala y reevaluar; no asumir que está quieta."],
+            )
+        )
+
+    if _known(answers, "pasante") == "Sí" and e not in {ElementType.LOSA, ElementType.MURO}:
+        rules.append(
+            _emit(
+                "R-F9",
+                "SI la grieta es pasante en viga/columna ENTONCES Moderada (sección atravesada).",
+                0.74,
+                prem,
+                ReportSeverity.MODERADA,
+                "Fisura pasante: discontinuidad a través del espesor, no solo piel.",
+                "ACI 224R-01; ACI 318 (integridad de sección).",
+                ["Medir si hay desplazamiento; evaluación formal si hay desalineación o desprendimiento."],
+            )
+        )
+
+    return rules
+
+
 def diagnose(
     ml_probability: float,
     *,
@@ -626,6 +976,7 @@ def diagnose(
     through_crack: bool = False,
     rust_stains: bool = False,
     spalling: bool = False,
+    field_answers: dict[str, str] | None = None,
 ) -> ExpertVerdict:
     """API de la interfaz: cadenas del formulario → dictamen."""
     obs = observation_from_form(
@@ -638,6 +989,7 @@ def diagnose(
         through_crack=through_crack,
         rust_stains=rust_stains,
         spalling=spalling,
+        field_answers=field_answers,
     )
     return evaluate_pathology(obs)
 
@@ -661,4 +1013,5 @@ def verdict_to_dict(verdict: ExpertVerdict) -> dict[str, object]:
             for r in verdict.fired_rules
         ],
         "notes": verdict.notes,
+        "headline": verdict.headline,
     }

@@ -68,7 +68,7 @@ crackexpert-ai/
 │   │   ├── Positive/        # OOD: hay fisura
 │   │   └── Negative/        # OOD: sana / negativos difíciles
 │   └── inspections/         # Visitas locales (JSON + JPG; no versionado)
-├── models/                  # *.keras (pesos grandes fuera de git)
+├── models/                  # cnn_custom, MobileNet, EfficientNet en git; ResNet no (150 MB)
 ├── reports/
 │   ├── figures/             # Corrida vigente
 │   ├── archive/             # Snapshots de corridas anteriores
@@ -160,13 +160,26 @@ OOD con pesos 4k (\(n=71\), 24/47): CNN F1 0,420 · MN 0,294 · RN 0,140 · EN 0
 
 ## 5. Instalación y comandos
 
-Python 3.10+. Kagglehub requiere token (`~/.kaggle/kaggle.json`).
+Python 3.10–3.12. Kagglehub requiere token (`~/.kaggle/kaggle.json`) solo para entrenar.
+
+Los pesos livianos van en el repo (`cnn_custom.keras` para la app; MobileNet y EfficientNet para comparar). `resnet50_v2.keras` (~150 MB) no se versiona; cópialo a mano si lo necesitas.
 
 ```powershell
 cd CrackExpertAI
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+```
+
+En macOS:
+
+```bash
+cd CrackExpertAI
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+python run_app.py
 ```
 
 | Comando | Efecto |

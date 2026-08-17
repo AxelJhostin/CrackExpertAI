@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import inspect
 import json
 import sys
 from datetime import datetime, timezone
@@ -107,6 +108,25 @@ def _request_hostname() -> str:
 
 def _is_loopback_host(hostname: str) -> bool:
     return hostname in {"localhost", "127.0.0.1", "::1", ""}
+
+
+def _stretch(fn) -> dict[str, object]:
+    """Streamlit 1.50+ usa width='stretch'; versiones previas use_container_width."""
+    if "width" in inspect.signature(fn).parameters:
+        return {"width": "stretch"}
+    return {"use_container_width": True}
+
+
+def _photo_gen() -> int:
+    return int(st.session_state.get("_photo_gen", 0))
+
+
+def _upload_key() -> str:
+    return f"photo_upload_{_photo_gen()}"
+
+
+def _camera_key() -> str:
+    return f"photo_camera_{_photo_gen()}"
 
 
 def _inject_css() -> None:
@@ -228,7 +248,7 @@ def _save_inspection(visit_id: str, image: Image.Image, data: dict) -> dict:
 
 
 def _stash_uploaded_file() -> None:
-    uploaded = st.session_state.get("photo_upload")
+    uploaded = st.session_state.get(_upload_key())
     if uploaded is None:
         return
     try:
@@ -247,7 +267,7 @@ def _stash_uploaded_file() -> None:
 
 
 def _stash_camera_file() -> None:
-    camera_file = st.session_state.get("photo_camera")
+    camera_file = st.session_state.get(_camera_key())
     if camera_file is None:
         return
     try:
@@ -265,7 +285,8 @@ def _stash_camera_file() -> None:
 def _clear_draft_photo() -> None:
     for key in ("draft_image", "draft_name", "draft_source", "draft_error"):
         st.session_state.pop(key, None)
-    st.session_state["_reset_photo"] = True
+    # Streamlit no permite asignar None a file_uploader/camera_input; se recicla la key.
+    st.session_state["_photo_gen"] = _photo_gen() + 1
 
 
 def _clear_quiz() -> None:
@@ -282,7 +303,7 @@ def _render_quiz_cards() -> str | None:
 
     raw = pending.get("image_bytes")
     if raw:
-        st.image(_bytes_to_image(raw), use_container_width=True)
+        st.image(_bytes_to_image(raw), **_stretch(st.image))
     st.caption("Responda una carta. Si no está seguro, use **No lo sé** — no inventamos el dato.")
 
     backs = ""
@@ -302,7 +323,7 @@ def _render_quiz_cards() -> str | None:
 
     chosen: str | None = None
     for option in question["options"]:
-        if st.button(str(option), key=f"quiz_{index}_{option}", use_container_width=True):
+        if st.button(str(option), key=f"quiz_{index}_{option}", **_stretch(st.button)):
             chosen = str(option)
     if st.button("Cancelar preguntas", key="quiz_cancel"):
         _clear_quiz()
@@ -377,7 +398,7 @@ def _render_visit_log(visit_id: str) -> None:
             if img_file:
                 path = photo_path(visit_id, str(img_file))
                 if path.exists():
-                    st.image(str(path), use_container_width=True)
+                    st.image(str(path), **_stretch(st.image))
         with cols[1]:
             st.markdown(_severity_badge(sev), unsafe_allow_html=True)
             st.write(
@@ -440,31 +461,27 @@ def main() -> None:
     st.subheader("Foto")
     if "use_desktop_camera" not in st.session_state:
         st.session_state["use_desktop_camera"] = not lan
-    if st.session_state.pop("_reset_photo", False):
-        st.session_state["photo_upload"] = None
-        if "photo_camera" in st.session_state:
-            st.session_state["photo_camera"] = None
 
     if lan or not st.session_state["use_desktop_camera"]:
         st.info("En el celular: Examinar → Cámara o Galería. Si no aparece, pruebe JPG o PNG.")
         st.file_uploader(
             "Tomar foto o elegir imagen",
             type=["jpg", "jpeg", "png", "webp", "bmp"],
-            key="photo_upload",
+            key=_upload_key(),
             on_change=_stash_uploaded_file,
         )
     else:
-        st.camera_input("Tomar foto", key="photo_camera", on_change=_stash_camera_file)
+        st.camera_input("Tomar foto", key=_camera_key(), on_change=_stash_camera_file)
         st.file_uploader(
             "O subir una imagen",
             type=["jpg", "jpeg", "png", "webp", "bmp"],
-            key="photo_upload",
+            key=_upload_key(),
             on_change=_stash_uploaded_file,
         )
 
-    if st.session_state.get("photo_upload") is not None:
+    if st.session_state.get(_upload_key()) is not None:
         _stash_uploaded_file()
-    elif st.session_state.get("photo_camera") is not None:
+    elif st.session_state.get(_camera_key()) is not None:
         _stash_camera_file()
 
     image: Image.Image | None = None
@@ -482,7 +499,7 @@ def main() -> None:
         st.error(st.session_state["draft_error"])
 
     if image is not None:
-        st.image(image, use_container_width=True)
+        st.image(image, **_stretch(st.image))
         if st.button("Quitar foto"):
             _clear_draft_photo()
             st.rerun()
@@ -495,7 +512,7 @@ def main() -> None:
     with c2:
         ambiente = st.selectbox("¿Dónde está esta foto?", EXPOSURE_OPTIONS)
 
-    run = st.button("Generar dictamen", type="primary", disabled=image is None, use_container_width=True)
+    run = st.button("Generar dictamen", type="primary", disabled=image is None, **_stretch(st.button))
 
     if run and image is not None:
         model = load_model(str(model_path))
@@ -603,7 +620,7 @@ def main() -> None:
                 data=json.dumps(report, indent=2, ensure_ascii=False).encode("utf-8"),
                 file_name=f"crackexpert_foto_{stamp}.json",
                 mime="application/json",
-                use_container_width=True,
+                **_stretch(st.download_button),
             )
 
     st.divider()

@@ -386,7 +386,7 @@
         <p class="tag">Entrenamiento</p>
         <h2>La CNN se estabiliza cuando baja el learning rate</h2>
         <img class="plot" src="assets/figures/learning_curves_cnn_custom.png" alt="Curvas de la CNN">
-        <div class="band sea">36 épocas. Fase 2 con LR 10⁻⁵. Mejor val_loss = 0,00856. EarlyStopping restauró esos pesos. El test no participó.</div>
+        <div class="band sea"><strong>Cómo se lee:</strong> cuando las curvas de pérdida bajan y validación acompaña a entrenamiento, la red está aprendiendo. Aquí la fase 2 suaviza la convergencia; EarlyStopping conserva el mejor punto. El test no participó.</div>
       </section>
 
       <!-- 9 -->
@@ -407,6 +407,7 @@
             <figcaption>EfficientNet-B0 · 29 épocas · val_loss 0,00154</figcaption>
           </figure>
         </div>
+        <div class="band sea"><strong>Qué significa:</strong> las redes con ImageNet parten con rasgos visuales útiles, por eso alcanzan accuracy alta desde el inicio. Llegar rápido a un buen resultado interno no garantiza reconocer fisuras tomadas con otro celular.</div>
       </section>
 
       <!-- 10 -->
@@ -452,11 +453,24 @@
         <p class="tag">Dónde se equivoca cada red</p>
         <h2>Matrices de confusión</h2>
         <div class="cols c2">
-          <img class="plot" style="max-height:300px;" src="assets/figures/confusion_matrix_cnn_custom.png" alt="CNN">
-          <img class="plot" style="max-height:300px;" src="assets/figures/confusion_matrix_mobilenet_v2.png" alt="MobileNet">
-          <img class="plot" style="max-height:300px;" src="assets/figures/confusion_matrix_resnet50_v2.png" alt="ResNet">
-          <img class="plot" style="max-height:300px;" src="assets/figures/confusion_matrix_efficientnet_b0.png" alt="EfficientNet">
+          <figure>
+            <img class="plot" style="max-height:270px;" src="assets/figures/confusion_matrix_cnn_custom.png" alt="CNN personalizada">
+            <figcaption>CNN personalizada · 2 FN</figcaption>
+          </figure>
+          <figure>
+            <img class="plot" style="max-height:270px;" src="assets/figures/confusion_matrix_mobilenet_v2.png" alt="MobileNetV2">
+            <figcaption>MobileNetV2 · 0 errores</figcaption>
+          </figure>
+          <figure>
+            <img class="plot" style="max-height:270px;" src="assets/figures/confusion_matrix_resnet50_v2.png" alt="ResNet50V2">
+            <figcaption>ResNet50V2 · 2 FP</figcaption>
+          </figure>
+          <figure>
+            <img class="plot" style="max-height:270px;" src="assets/figures/confusion_matrix_efficientnet_b0.png" alt="EfficientNet-B0">
+            <figcaption>EfficientNet-B0 · 1 FP</figcaption>
+          </figure>
         </div>
+        <div class="band sea"><strong>Cómo se lee:</strong> la diagonal principal son aciertos; fuera de ella están los errores. La CNN tiene 2 falsos negativos, MobileNet ninguno, ResNet 2 falsos positivos y EfficientNet 1 falso positivo.</div>
       </section>
 
       <!-- 12 -->
@@ -472,6 +486,7 @@
             <div class="card"><h3>ResNet · 22,7 ms · 151 MB</h3><p>Demasiado cara para el celular.</p></div>
           </div>
         </div>
+        <div class="band sea"><strong>Qué significa:</strong> una ROC cercana a la esquina superior izquierda y AUC=1,0 indican separación casi perfecta en Kaggle. La gráfica no mide por sí sola la generalización OOD; por eso se consideran también recall, tamaño y latencia.</div>
       </section>
 
       <!-- 13 -->
@@ -524,6 +539,7 @@
             <figcaption>30 fisura / 47 sanas o trampas. Accuracy engaña: se defiende F1 y recall.</figcaption>
           </figure>
         </div>
+        <div class="band sea"><strong>Cómo se lee:</strong> la diagonal principal son aciertos; fuera de ella están los errores. La CNN tiene 2 falsos negativos, MobileNet ninguno, ResNet 2 falsos positivos y EfficientNet 1 falso positivo.</div>
       </section>
 
       <!-- 15 -->
@@ -697,6 +713,27 @@
       </section>
 
       <!-- 23 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Fuentes y alcance</p>
+        <h2>Resultados trazables, alcance explícito</h2>
+        <div class="cols c2">
+          <div class="card">
+            <h3>Fuentes técnicas</h3>
+            <p>ACI 224R-01 · ACI 318 · NEC-SE-HM</p>
+            <p>Özgenel y Sorguç · Surface Crack Detection Dataset · Kaggle</p>
+            <p>TensorFlow/Keras · OpenCV · scikit-learn · Streamlit</p>
+          </div>
+          <div class="card">
+            <h3>Evidencia del proyecto</h3>
+            <p>Test Kaggle: n=1.200 · OOD: n=77 (30 Positive / 47 Negative)</p>
+            <p>Resultados y figuras: <span class="mono">reports/</span></p>
+            <p>La app es un apoyo académico a la inspección; no sustituye un peritaje estructural.</p>
+          </div>
+        </div>
+        <div class="band sea"><strong>Qué significa:</strong> una ROC cercana a la esquina superior izquierda y AUC=1,0 indican separación casi perfecta en Kaggle. La gráfica no mide por sí sola la generalización OOD; por eso se consideran también recall, tamaño y latencia.</div>
+      </section>
+
+      <!-- 24 -->
       <section data-background-image="assets/ood/fisura_campo_1.jpeg" data-background-size="cover">
         <div class="cover-shade"></div>
         <div style="position:relative; padding-top:80px;">

@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CrackExpert AI — defensa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650;9..144,720&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/highlight/monokai.css">
+  <style>
+    :root {
+      --ink: #1C1917;
+      --navy: #0F2744;
+      --paper: #F4EFE6;
+      --gold: #C4A35A;
+      --brick: #B94A38;
+      --sea: #2F6F6A;
+      --sky: #3D6B9A;
+      --line: #D9D1C3;
+      --white: #FFFcf7;
+    }
+
+    .reveal {
+      font-family: "Source Sans 3", sans-serif;
+      color: var(--ink);
+      font-size: 30px;
+    }
+    .reveal .slides { text-align: left; }
+    .reveal .slides > section {
+      box-sizing: border-box;
+      padding: 32px 40px 28px;
+    }
+    .reveal h1, .reveal h2, .reveal h3 {
+      font-family: Fraunces, Georgia, serif;
+      text-transform: none;
+      letter-spacing: -0.03em;
+      font-weight: 650;
+      color: var(--navy);
+      margin: 0;
+      line-height: 1.12;
+    }
+    .reveal h1 { font-size: 2.15em; }
+    .reveal h2 { font-size: 1.28em; margin-bottom: 16px; }
+    .reveal p { font-size: 0.72em; line-height: 1.38; margin: 0; }
+    .reveal .progress { color: var(--gold); height: 5px; }
+    .reveal .controls { color: var(--navy); }
+    .reveal .slide-number {
+      font-family: "Source Sans 3", sans-serif;
+      font-size: 13px;
+      color: #fff;
+      background: var(--navy);
+      padding: 3px 9px;
+      border-radius: 999px;
+      right: 14px;
+      bottom: 12px;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--navy);
+      background: var(--gold);
+      padding: 5px 10px;
+      margin-bottom: 10px;
+    }
+    .lede { font-size: 0.78em; color: #44403C; max-width: 38em; margin-bottom: 16px; }
+
+    .frame {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .shot {
+      width: 100%;
+      height: 210px;
+      object-fit: cover;
+      display: block;
+      background: #ddd;
+    }
+    .plot {
+      width: 100%;
+      max-height: 520px;
+      object-fit: contain;
+      background: var(--white);
+      border: 1px solid var(--line);
+      display: block;
+    }
+    .phone {
+      width: 100%;
+      height: 430px;
+      object-fit: contain;
+      background: #0B1220;
+      display: block;
+    }
+
+    .cols { display: grid; gap: 14px; }
+    .c2 { grid-template-columns: 1fr 1fr; }
+    .c3 { grid-template-columns: 1fr 1fr 1fr; }
+    .c23 { grid-template-columns: 1.15fr 0.85fr; }
+    .c32 { grid-template-columns: 0.9fr 1.1fr; }
+
+    figure { margin: 0; }
+    figcaption {
+      font-size: 13px;
+      color: #57534E;
+      margin-top: 6px;
+      font-weight: 600;
+    }
+
+    .card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      padding: 14px 16px;
+    }
+    .card h3 {
+      font-size: 0.72em;
+      margin-bottom: 6px;
+    }
+    .card p { font-size: 0.62em; }
+
+    .band {
+      padding: 12px 16px;
+      font-size: 0.62em;
+      font-weight: 600;
+      line-height: 1.35;
+      margin-top: 12px;
+    }
+    .band.gold { background: #EBD9A8; color: #3F2E0C; }
+    .band.brick { background: #F3D0C8; color: #7A2418; }
+    .band.sea { background: #D5E8E4; color: #1A433F; }
+    .band.navy { background: var(--navy); color: #F4EFE6; }
+
+    .reveal table.sheet {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 15px;
+      margin: 0;
+    }
+    .reveal table.sheet th {
+      background: var(--navy);
+      color: #fff;
+      font-weight: 700;
+      text-align: left;
+      padding: 8px 10px;
+    }
+    .reveal table.sheet td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--white);
+    }
+    .reveal table.sheet tr:nth-child(even) td { background: #FAF6EF; }
+    .reveal table.sheet tr.pick td { background: #D5E8E4; font-weight: 700; }
+    .reveal table.sheet tr.warn td { background: #F3D0C8; font-weight: 700; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+    .kpi {
+      background: var(--navy);
+      color: #fff;
+      padding: 14px 16px;
+    }
+    .kpi b { display: block; font-family: Fraunces, serif; font-size: 1.55em; line-height: 1; }
+    .kpi span { display: block; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; margin-top: 6px; }
+
+    .step {
+      background: var(--navy);
+      color: #fff;
+      padding: 14px;
+      min-height: 168px;
+    }
+    .step:nth-child(2) { background: var(--sky); }
+    .step:nth-child(3) { background: var(--sea); }
+    .step:nth-child(4) { background: #8A5A2B; }
+    .step:nth-child(5) { background: var(--brick); }
+    .step strong { display: block; font-family: Fraunces, serif; font-size: 0.78em; margin-bottom: 8px; }
+    .step p { font-size: 0.52em; color: #F4EFE6; }
+
+    .blk {
+      color: #fff;
+      text-align: center;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 10px 8px;
+    }
+
+    .q {
+      background: var(--white);
+      border-top: 5px solid var(--navy);
+      padding: 12px;
+      min-height: 92px;
+    }
+    .q:nth-child(3n+2) { border-top-color: var(--sea); }
+    .q:nth-child(3n) { border-top-color: var(--brick); }
+    .q small { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #78716C; font-weight: 700; }
+    .q p { font-size: 0.58em; font-weight: 650; margin-top: 4px; }
+
+    .sev { font-weight: 800; }
+    .s-c { color: var(--brick); }
+    .s-m { color: #9A4B12; }
+    .s-l { color: var(--sea); }
+
+    .reveal pre { margin: 0 !important; width: 100%; }
+    .reveal pre code {
+      font-size: 13px;
+      line-height: 1.4;
+      padding: 14px !important;
+      max-height: none;
+    }
+
+    .cover-shade {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, rgba(15,39,68,.94) 0%, rgba(15,39,68,.78) 42%, rgba(15,39,68,.28) 100%);
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- 1 -->
+      <section data-background-image="assets/ood/encuentro_columna.jpeg" data-background-size="cover" data-background-position="60% 50%">
+        <div class="cover-shade"></div>
+        <div style="position:relative; max-width:18em; padding-top:48px;">
+          <p class="tag">Sistemas expertos · PUCE Manabí</p>
+          <h1 style="color:#fff; margin:12px 0 16px;">CrackExpert AI</h1>
+          <p style="color:#F4EFE6; font-size:0.82em; max-width:16em;">
+            Una red ve si hay fisura. Un sistema experto, con ACI y NEC, dice qué hacer con ella.
+          </p>
+          <p style="color:#EBD9A8; font-size:16px; margin-top:48px; font-weight:700;">
+            Hernández · Márquez · Sornoza<br>
+            Ing. Gómez Bravo Josselyn · 2026
+          </p>
+        </div>
+      </section>
+
+      <!-- 2 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Por qué existe</p>
+        <h2>La fisura está ahí. Interpretarla es otra cosa.</h2>
+        <div class="cols c3">
+          <figure>
+            <img class="shot" src="assets/ood/fisura_campo_1.jpeg" alt="Fisura en muro">
+            <figcaption>Foto de celular · trazo real, luz irregular</figcaption>
+          </figure>
+          <figure>
+            <img class="shot" src="assets/ood/encuentro_columna.jpeg" alt="Esquina de muro">
+            <figcaption>Esquina de elemento · no es un parche de Kaggle</figcaption>
+          </figure>
+          <figure>
+            <img class="shot" src="assets/ood/elemento_columna.jpeg" alt="Hormigón">
+            <figcaption>Hormigón con árido, sombra y profundidad</figcaption>
+          </figure>
+        </div>
+        <div class="band gold">
+          Inspeccionar a mano es lento y subjetivo. Una CNN puede marcar la grieta.
+          No puede decir si es retracción o cortante, ni qué exige el código en Manabí.
+        </div>
+      </section>
+
+      <!-- 3 -->
+      <section data-background-color="#0F2744">
+        <p class="tag">La idea</p>
+        <h2 style="color:#F4EFE6;">Dos capas que no se pisan</h2>
+        <div class="cols c2">
+          <figure>
+            <img class="shot" style="height:280px;" src="assets/ood/fisura_campo_1.jpeg" alt="Lo que ve la CNN">
+            <figcaption style="color:#EBD9A8;">Lo que ve la CNN: ¿hay una discontinuidad?</figcaption>
+          </figure>
+          <figure>
+            <img class="shot" style="height:280px; object-fit:cover; object-position:top;" src="assets/word/image11.png" alt="Especificación del experto">
+            <figcaption style="color:#EBD9A8;">Lo que razona el experto: ACI 224R · ACI 318 · NEC-SE-HM</figcaption>
+          </figure>
+        </div>
+        <div class="band gold">
+          Cambiar una regla del código no reentrena la red. Cambiar el modelo no mueve w<sub>max</sub>.
+          Esa separación es el sistema.
+        </div>
+      </section>
+
+      <!-- 4 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Cómo corre una foto</p>
+        <h2>De la cámara al dictamen</h2>
+        <div class="cols" style="grid-template-columns:repeat(5,1fr);">
+          <div class="step"><strong>1. Foto</strong><p>JPG o PNG, 224×224. Una visita guarda varias tomas del mismo lugar.</p></div>
+          <div class="step"><strong>2. CNN</strong><p>P(fisura). Si es menor a 0,50, se acaba: no hay grieta visual.</p></div>
+          <div class="step"><strong>3. OpenCV</strong><p>Vertical, horizontal, inclinada o malla. El inspector puede corregir.</p></div>
+          <div class="step"><strong>4. Campo</strong><p>Elemento, ambiente y 9 cartas. «No lo sé» no inventa hechos.</p></div>
+          <div class="step"><strong>5. Experto</strong><p>Severidad, mecanismo, plan y certeza MYCIN. Alerta, no peritaje.</p></div>
+        </div>
+      </section>
+
+      <!-- 5 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Los datos</p>
+        <h2>8.000 imágenes, semilla 42, test ciego</h2>
+        <div class="cols" style="grid-template-columns:repeat(4,1fr); margin-bottom:14px;">
+          <div class="kpi"><b>8.000</b><span>total · 50 / 50</span></div>
+          <div class="kpi" style="background:#3D6B9A;"><b>5.600</b><span>train · con aumento</span></div>
+          <div class="kpi" style="background:#2F6F6A;"><b>1.200</b><span>validación</span></div>
+          <div class="kpi" style="background:#B94A38;"><b>1.200</b><span>test · no se toca</span></div>
+        </div>
+        <div class="cols c23">
+          <table class="sheet">
+            <thead><tr><th>Partición</th><th>Pos / Neg</th><th>Rol</th></tr></thead>
+            <tbody>
+              <tr><td>Train 70 %</td><td class="mono">2.800 / 2.800</td><td>Flip, rotación, zoom, brillo</td></tr>
+              <tr><td>Val 15 %</td><td class="mono">600 / 600</td><td>EarlyStopping sobre val_loss</td></tr>
+              <tr class="pick"><td>Test 15 %</td><td class="mono">600 / 600</td><td>Evaluación ciega, sin augmentation</td></tr>
+            </tbody>
+          </table>
+          <div class="card">
+            <h3>Surface Crack Detection</h3>
+            <p>Özgenel / Kaggle. Parches de campus universitario. Etiqueta: hay fisura o no.</p>
+            <p style="margin-top:8px;">No hay milímetros ni mecanismo. Por eso el experto vive aparte.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Machine learning</p>
+        <h2>Cuatro redes, la misma receta</h2>
+        <table class="sheet">
+          <thead>
+            <tr>
+              <th>Modelo</th><th>De dónde sale</th><th>Fine-tuning</th>
+              <th>Parámetros</th><th>Peso</th><th>En test</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="pick">
+              <td>CNN personalizada</td><td>Desde cero, 3 bloques</td><td>Red completa</td>
+              <td class="mono">110.561</td><td class="mono">1,3 MB</td><td>2 FN · la de la app</td>
+            </tr>
+            <tr>
+              <td>MobileNetV2</td><td>ImageNet</td><td>25 capas</td>
+              <td class="mono">2,26 M</td><td class="mono">19,5 MB</td><td>0 errores en Kaggle</td>
+            </tr>
+            <tr>
+              <td>EfficientNet-B0</td><td>ImageNet</td><td>20 capas</td>
+              <td class="mono">4,05 M</td><td class="mono">26,5 MB</td><td>1 falso positivo</td>
+            </tr>
+            <tr>
+              <td>ResNet50V2</td><td>ImageNet</td><td>20 capas</td>
+              <td class="mono">23,6 M</td><td class="mono">151 MB</td><td>2 FP · 22,7 ms</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="band sea">Adam · binary_crossentropy · batch 32 · dos fases (LR 10⁻³ luego 10⁻⁵) · EarlyStopping patience 5. El test no entra al corte.</div>
+      </section>
+
+      <!-- 7 -->
+      <section data-background-color="#0F2744">
+        <p class="tag">La red que se despliega</p>
+        <h2 style="color:#F4EFE6;">CNN hecha a mano, 1,3 MB</h2>
+        <div class="cols c2">
+          <div>
+            <div class="blk" style="background:#3D6B9A;">224×224 RGB → [0, 1]</div>
+            <div class="blk" style="background:#2F6F6A;">Conv 32 + BN + ReLU + Pool + Drop 0,25</div>
+            <div class="blk" style="background:#8A5A2B;">Conv 64 + BN + ReLU + Pool + Drop 0,25</div>
+            <div class="blk" style="background:#B94A38;">Conv 128 + BN + ReLU + Pool + Drop 0,25</div>
+            <div class="blk" style="background:#1C1917;">GAP → Dense 128 → Drop 0,50 → sigmoid P(fisura)</div>
+          </div>
+          <pre><code class="language-python" data-trim>def build_cnn_custom():
+    x = Rescaling(1/255)(inputs)
+    for f in (32, 64, 128):
+        x = Conv2D(f, 3, padding="same")(x)
+        x = BatchNormalization()(x)
+        x = Activation("relu")(x)
+        x = MaxPooling2D(2)(x)
+        x = Dropout(0.25)(x)
+    x = Dense(128, "relu")(GAP(x))
+    return Dense(1, "sigmoid")(x)</code></pre>
+        </div>
+      </section>
+
+      <!-- 8 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Entrenamiento</p>
+        <h2>La CNN se estabiliza cuando baja el learning rate</h2>
+        <img class="plot" src="assets/figures/learning_curves_cnn_custom.png" alt="Curvas de la CNN">
+        <div class="band sea">36 épocas. Fase 2 con LR 10⁻⁵. Mejor val_loss = 0,00856. EarlyStopping restauró esos pesos. El test no participó.</div>
+      </section>
+
+      <!-- 9 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Las otras tres</p>
+        <h2>ImageNet llega alto desde la primera época</h2>
+        <div class="cols c3">
+          <figure>
+            <img class="plot" style="max-height:380px;" src="assets/figures/learning_curves_mobilenet_v2.png" alt="MobileNet">
+            <figcaption>MobileNetV2 · 33 épocas · val_loss 0,00018</figcaption>
+          </figure>
+          <figure>
+            <img class="plot" style="max-height:380px;" src="assets/figures/learning_curves_resnet50_v2.png" alt="ResNet">
+            <figcaption>ResNet50V2 · 26 épocas · val_loss 0,00035</figcaption>
+          </figure>
+          <figure>
+            <img class="plot" style="max-height:380px;" src="assets/figures/learning_curves_efficientnet_b0.png" alt="EfficientNet">
+            <figcaption>EfficientNet-B0 · 29 épocas · val_loss 0,00154</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 10 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Test Kaggle · 1.200 imágenes</p>
+        <h2>Accuracy, precision, recall, F1 y AUC</h2>
+        <table class="sheet">
+          <thead>
+            <tr><th>Modelo</th><th>Acc</th><th>Prec</th><th>Recall</th><th>F1</th><th>AUC</th><th>Lectura</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>CNN</td>
+              <td class="mono">0,9983</td><td class="mono">1,0000</td>
+              <td class="mono">0,9967</td><td class="mono">0,9983</td>
+              <td class="mono">1,0000</td><td>2 fisuras no vistas</td>
+            </tr>
+            <tr class="pick">
+              <td>MobileNetV2</td>
+              <td class="mono">1,0000</td><td class="mono">1,0000</td>
+              <td class="mono">1,0000</td><td class="mono">1,0000</td>
+              <td class="mono">1,0000</td><td>Ganador de esta tabla</td>
+            </tr>
+            <tr>
+              <td>ResNet50V2</td>
+              <td class="mono">0,9983</td><td class="mono">0,9967</td>
+              <td class="mono">1,0000</td><td class="mono">0,9983</td>
+              <td class="mono">1,0000</td><td>2 sanas como fisura</td>
+            </tr>
+            <tr>
+              <td>EfficientNet</td>
+              <td class="mono">0,9992</td><td class="mono">0,9983</td>
+              <td class="mono">1,0000</td><td class="mono">0,9992</td>
+              <td class="mono">1,0000</td><td>1 falso positivo</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="band brick">Un F1 de 1,0 aquí no cierra el problema. Son parches de campus, de alto contraste. El celular cuenta otra historia.</div>
+      </section>
+
+      <!-- 11 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Dónde se equivoca cada red</p>
+        <h2>Matrices de confusión</h2>
+        <div class="cols c2">
+          <img class="plot" style="max-height:300px;" src="assets/figures/confusion_matrix_cnn_custom.png" alt="CNN">
+          <img class="plot" style="max-height:300px;" src="assets/figures/confusion_matrix_mobilenet_v2.png" alt="MobileNet">
+          <img class="plot" style="max-height:300px;" src="assets/figures/confusion_matrix_resnet50_v2.png" alt="ResNet">
+          <img class="plot" style="max-height:300px;" src="assets/figures/confusion_matrix_efficientnet_b0.png" alt="EfficientNet">
+        </div>
+      </section>
+
+      <!-- 12 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Separación y costo</p>
+        <h2>Las cuatro tienen AUC 1,0. No cuestan igual.</h2>
+        <div class="cols c23">
+          <img class="plot" src="assets/figures/roc_curves_comparison.png" alt="ROC">
+          <div>
+            <div class="card" style="margin-bottom:10px;"><h3>CNN · 6,5 ms · 1,3 MB</h3><p>La más rápida. La de la app.</p></div>
+            <div class="card" style="margin-bottom:10px;"><h3>MobileNet · 11,3 ms · 19,5 MB</h3><p>Perfecta en Kaggle.</p></div>
+            <div class="card" style="margin-bottom:10px;"><h3>EfficientNet · 14,1 ms · 26,5 MB</h3><p>Un falso positivo.</p></div>
+            <div class="card"><h3>ResNet · 22,7 ms · 151 MB</h3><p>Demasiado cara para el celular.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 13 -->
+      <section data-background-color="#0F2744">
+        <p class="tag">El hallazgo</p>
+        <h2 style="color:#F4EFE6;">Quien gana Kaggle pierde en casa</h2>
+        <div class="cols c2">
+          <div class="kpi" style="min-height:220px;">
+            <span>MobileNet en Kaggle · F1</span>
+            <b style="font-size:2.4em; margin-top:10px;">1,000</b>
+            <p style="margin-top:12px; font-size:0.62em; color:#EBD9A8;">Cero errores en 1.200 parches de campus.</p>
+          </div>
+          <div class="kpi" style="background:#B94A38; min-height:220px;">
+            <span>El mismo modelo en celular · recall</span>
+            <b style="font-size:2.4em; margin-top:10px;">33 %</b>
+            <p style="margin-top:12px; font-size:0.62em; color:#F4EFE6;">Deja dos de cada tres fisuras reales.</p>
+          </div>
+        </div>
+        <div class="band gold">La CNN personalizada recupera el 70 % de las fisuras de celular. Por eso la app carga cnn_custom.keras, no MobileNet.</div>
+      </section>
+
+      <!-- 14 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">77 fotos reales</p>
+        <h2>Fuera de distribución: el ranking se invierte</h2>
+        <div class="cols c23">
+          <table class="sheet">
+            <thead><tr><th>Modelo</th><th>Acc</th><th>Prec</th><th>Rec</th><th>F1</th></tr></thead>
+            <tbody>
+              <tr class="pick">
+                <td>CNN</td><td class="mono">0,377</td><td class="mono">0,350</td>
+                <td class="mono">0,700</td><td class="mono">0,467</td>
+              </tr>
+              <tr>
+                <td>MobileNet</td><td class="mono">0,325</td><td class="mono">0,238</td>
+                <td class="mono">0,333</td><td class="mono">0,278</td>
+              </tr>
+              <tr>
+                <td>EfficientNet</td><td class="mono">0,234</td><td class="mono">0,204</td>
+                <td class="mono">0,333</td><td class="mono">0,253</td>
+              </tr>
+              <tr class="warn">
+                <td>ResNet</td><td class="mono">0,234</td><td class="mono">0,061</td>
+                <td class="mono">0,067</td><td class="mono">0,063</td>
+              </tr>
+            </tbody>
+          </table>
+          <figure>
+            <img class="shot" style="height:280px;" src="assets/word/image19.png" alt="App en el celular">
+            <figcaption>30 fisura / 47 sanas o trampas. Accuracy engaña: se defiende F1 y recall.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 15 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Por qué falla en campo</p>
+        <h2>Juntas, esquinas y compresión de WhatsApp</h2>
+        <div class="cols c3">
+          <figure>
+            <img class="shot" style="height:240px;" src="assets/ood/encuentro_columna.jpeg" alt="Esquina">
+            <figcaption>Geometría 3D. Kaggle son recortes planos.</figcaption>
+          </figure>
+          <figure>
+            <img class="shot" style="height:240px;" src="assets/ood/superficie_1.jpeg" alt="Textura">
+            <figcaption>Mancha, árido y humedad se parecen a un trazo.</figcaption>
+          </figure>
+          <figure>
+            <img class="shot" style="height:240px;" src="assets/ood/elemento_columna.jpeg" alt="Hormigón">
+            <figcaption>La etiqueta no trae mm ni mecanismo. La CNN no diagnostica sola.</figcaption>
+          </figure>
+        </div>
+        <div class="band gold">La mejora útil no es otra arquitectura sobre Kaggle. Es más fotos de celular, augmentation de móvil, y calibrar el umbral 0,50.</div>
+      </section>
+
+      <!-- 16 -->
+      <section data-background-color="#0F2744">
+        <p class="tag">Sistema experto</p>
+        <h2 style="color:#F4EFE6;">El código habla. La red no.</h2>
+        <div class="cols c3">
+          <div class="card" style="background:#3D6B9A; color:#fff; border:0;">
+            <h3 style="color:#fff;">ACI 224R-01</h3>
+            <p>Anchos máximos de fisura de flexión según exposición. Durabilidad, no colapso.</p>
+          </div>
+          <div class="card" style="background:#2F6F6A; color:#fff; border:0;">
+            <h3 style="color:#fff;">ACI 318</h3>
+            <p>El patrón visual mapea a mecanismo: flexión, cortante, columna, corrosión.</p>
+          </div>
+          <div class="card" style="background:#B94A38; color:#fff; border:0;">
+            <h3 style="color:#fff;">NEC-SE-HM</h3>
+            <p>Hormigón armado en Ecuador. Ambiente marino del litoral manabita.</p>
+          </div>
+        </div>
+        <div class="band gold">«Crítica» es una alerta de protocolo. Nadie firma un peritaje con esta app.</div>
+      </section>
+
+      <!-- 17 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Conocimiento</p>
+        <h2>Ancho admisible y patrón de falla</h2>
+        <div class="cols c2">
+          <table class="sheet">
+            <thead><tr><th>Ambiente en la app</th><th>w<sub>max</sub></th></tr></thead>
+            <tbody>
+              <tr><td>Interior seco</td><td class="mono">0,41 mm</td></tr>
+              <tr><td>Exterior húmedo</td><td class="mono">0,30 mm</td></tr>
+              <tr class="warn"><td>Marino / agresivo</td><td class="mono">0,15 mm</td></tr>
+              <tr><td>Fisura grosera</td><td class="mono">≥ 1,0 mm → crítica</td></tr>
+            </tbody>
+          </table>
+          <table class="sheet">
+            <thead><tr><th>Si se ve…</th><th>Mecanismo</th><th>Típico</th></tr></thead>
+            <tbody>
+              <tr><td>Diagonal 45°</td><td>Cortante</td><td class="sev s-c">Crítica</td></tr>
+              <tr><td>Vertical en columna</td><td>Compresión</td><td class="sev s-m">Moderada</td></tr>
+              <tr><td>Horizontal en columna</td><td>Sismo / viento</td><td class="sev s-c">Crítica</td></tr>
+              <tr><td>Malla</td><td>Retracción</td><td class="sev s-l">Leve</td></tr>
+              <tr><td>Paralela al acero</td><td>Corrosión</td><td class="sev s-m">Moderada</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:14px; color:#57534E; margin-top:10px;">En campo no se pide el ancho: se marca evidencia incompleta. OpenCV no ve helicoidal.</p>
+      </section>
+
+      <!-- 18 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Inferencia</p>
+        <h2>Reglas hacia adelante y certeza MYCIN</h2>
+        <div class="cols c2">
+          <div>
+            <div class="card" style="margin-bottom:8px;"><p><b>R0</b> — P &lt; 0,50 → no hay fisura visual.</p></div>
+            <div class="card" style="margin-bottom:8px;"><p><b>R1</b> — P ≥ 0,50 → hay fisura, arranca en leve.</p></div>
+            <div class="card" style="margin-bottom:8px;"><p><b>R6b</b> — sin milímetros → no se inventa el ancho.</p></div>
+            <div class="card" style="margin-bottom:8px;"><p><b>R-P1</b> — diagonal en apoyos → cortante crítica.</p></div>
+            <div class="card"><p><b>R-P7</b> — paralela al acero → corrosión.</p></div>
+          </div>
+          <div class="kpi" style="min-height:100%;">
+            <span>De la red al experto</span>
+            <b style="font-size:1.35em; margin:12px 0 8px;">CF<sub>P</sub> = 2P − 1</b>
+            <p style="font-size:0.62em; color:#EBD9A8;">P = 0,50 no aporta. P = 0,92 da CF 0,84.</p>
+            <b style="font-size:1.05em; margin:18px 0 8px;">CF<sub>comb</sub> = CF<sub>a</sub> + CF<sub>b</sub>(1 − CF<sub>a</sub>)</b>
+            <p style="font-size:0.62em; color:#EBD9A8;">Gana la severidad más grave. «No lo sé» no dispara la regla.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 19 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Si la CNN ve fisura</p>
+        <h2>Nueve cartas. El inspector declara lo que la foto no sabe.</h2>
+        <div class="cols c3">
+          <div class="q"><small>01</small><p>¿Dónde está? Apoyo, medio, junta</p></div>
+          <div class="q"><small>02</small><p>¿Una sola o varias en red?</p></div>
+          <div class="q"><small>03</small><p>¿Hay humedad, goteo o mancha?</p></div>
+          <div class="q"><small>04</small><p>¿Óxido o se cae el concreto?</p></div>
+          <div class="q"><small>05</small><p>¿Hace cuánto la notaste?</p></div>
+          <div class="q"><small>06</small><p>¿Hubo un temblor reciente?</p></div>
+          <div class="q"><small>07</small><p>¿Hay pisos o carga arriba?</p></div>
+          <div class="q"><small>08</small><p>¿Crece o está igual?</p></div>
+          <div class="q"><small>09</small><p>¿Pasa al otro lado?</p></div>
+        </div>
+      </section>
+
+      <!-- 20 -->
+      <section data-background-color="#0F2744">
+        <p class="tag">En el teléfono</p>
+        <h2 style="color:#F4EFE6;">Foto, dictamen y el porqué técnico</h2>
+        <div class="cols c3">
+          <figure>
+            <img class="phone" src="assets/word/image19.png" alt="Cargar foto">
+            <figcaption style="color:#EBD9A8; text-align:center;">Examinar → cámara</figcaption>
+          </figure>
+          <figure>
+            <img class="phone" src="assets/word/image16.png" alt="Dictamen">
+            <figcaption style="color:#EBD9A8; text-align:center;">Severidad llana y qué hacer</figcaption>
+          </figure>
+          <figure>
+            <img class="phone" src="assets/word/image13.png" alt="Detalle">
+            <figcaption style="color:#EBD9A8; text-align:center;">P, CF, normas y JSON</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 21 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Están conectados</p>
+        <h2>Una acción produce el expediente</h2>
+        <div class="cols c2">
+          <pre><code class="language-python" data-trim>def diagnose(ml_probability, *, elemento, ambiente,
+             patron_orientacion, ancho_mm=None,
+             field_answers=None):
+    obs = observation_from_form(...)
+    return evaluate_pathology(obs)
+
+# Foto → P_ML → OpenCV → experto → JSON
+# models/cnn_custom.keras</code></pre>
+          <div class="card">
+            <h3>Lo que hay que ver en la demo</h3>
+            <p>1. Alta de visita.<br>2. Foto + viga/columna/losa/muro + ambiente.<br>3. Si hay fisura, las nueve cartas.<br>4. Dictamen y bitácora en este equipo.</p>
+            <p style="margin-top:12px;">Si falta el modelo, la app se detiene. Si cambia una regla ACI, el dictamen cambia sin reentrenar.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 22 -->
+      <section data-background-color="#F4EFE6">
+        <p class="tag">Para llevar</p>
+        <h2>Tres cosas que sí se pueden defender</h2>
+        <div class="cols c3">
+          <div class="kpi" style="min-height:240px;">
+            <b style="font-size:1.4em;">Kaggle no es la obra</b>
+            <p style="margin-top:12px; font-size:0.62em; color:#EBD9A8;">F1 ≥ 0,998 in-domain. En celular gana la CNN, no MobileNet.</p>
+          </div>
+          <div class="kpi" style="background:#2F6F6A; min-height:240px;">
+            <b style="font-size:1.4em;">El experto interpreta</b>
+            <p style="margin-top:12px; font-size:0.62em; color:#F4EFE6;">ACI, NEC, patrón, nueve cartas y MYCIN. La red no opina de patología.</p>
+          </div>
+          <div class="kpi" style="background:#B94A38; min-height:240px;">
+            <b style="font-size:1.4em;">Una foto cierra el ciclo</b>
+            <p style="margin-top:12px; font-size:0.62em; color:#F4EFE6;">P<sub>ML</sub>, orientación, dictamen y JSON en el mismo teléfono.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 23 -->
+      <section data-background-image="assets/ood/fisura_campo_1.jpeg" data-background-size="cover">
+        <div class="cover-shade"></div>
+        <div style="position:relative; padding-top:80px;">
+          <p class="tag">Gracias</p>
+          <h1 style="color:#fff;">CrackExpert AI</h1>
+          <p style="color:#F4EFE6; font-size:0.82em; margin-top:12px; max-width:16em;">
+            Visión y sistema experto para fisuras en hormigón armado.
+          </p>
+          <p style="color:#EBD9A8; margin-top:40px; font-size:16px; font-weight:700;">
+            Hernández · Márquez · Sornoza · PUCE Sede Manabí
+          </p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/highlight/highlight.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      slideNumber: "c/t",
+      width: 1440,
+      height: 900,
+      margin: 0.05,
+      minScale: 0.35,
+      maxScale: 1.4,
+      center: false,
+      transition: "fade",
+      backgroundTransition: "fade",
+      plugins: [RevealHighlight]
+    });
+  </script>
+</body>
+</html>

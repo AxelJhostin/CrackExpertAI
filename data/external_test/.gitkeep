@@ -1,2 +1,14 @@
-# Coloca aquí fotos .jpg / .png / .webp de casos reales (fuera del dataset de Kaggle).
-# Ejecución: python test_external.py
+# Cómo guardar las fotos OOD
+
+Meta: ~50 fotos, ojalá ~25 fisura y ~25 sin fisura (negativos difíciles).
+
+```
+data/external_test/Positive/   ← hay fisura clara
+data/external_test/Negative/   ← sana, textura, junta, mancha, sombra, humedad
+```
+
+Las 9 fotos viejas pueden quedarse en la raíz (sin etiqueta) o moverse a Positive/Negative.
+
+Variar: cerca/lejos, luz fuerte/sombra, juntas, poros, pintura, cables, fisura fina y gruesa.
+
+Luego: `python test_external.py` (usa los `.keras` que haya en `models/`).

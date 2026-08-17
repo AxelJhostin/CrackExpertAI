@@ -1,15 +1,13 @@
 """Evaluación comparativa de casos reales con los 4 modelos entrenados.
 
 Uso:
-    1. Copiar fotos (.jpeg, .jpg, .png, .webp, .bmp) a data/external_test/
-    2. python test_external.py
+    Opción A (sin etiqueta): fotos sueltas en data/external_test/
+    Opción B (OOD etiquetado, recomendado):
+        data/external_test/Positive/   # hay fisura
+        data/external_test/Negative/   # superficie sana / negativos difíciles
+    python test_external.py
 
-Cada ejecución ANEXA una corrida con fecha a:
-    reports/external_test_comparison.md
-    reports/external_test_comparison.csv
-No se borra el historial de pruebas anteriores.
-
-Preprocesado alineado al entrenamiento: RGB 224×224, float32 en [0, 255].
+Cada ejecución ANEXA una corrida con fecha. No borra el historial.
 """
 
 from __future__ import annotations
@@ -20,7 +18,8 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from tensorflow import keras
 
 ROOT = Path(__file__).resolve().parent
@@ -47,8 +46,24 @@ def list_images(folder: Path) -> list[Path]:
     return sorted(files, key=lambda p: p.name.lower())
 
 
+def collect_cases() -> list[tuple[Path, int | None]]:
+    """Positive=1, Negative=0; archivos en la raíz quedan sin etiqueta."""
+    cases: list[tuple[Path, int | None]] = []
+    pos_dir = IMAGE_DIR / "Positive"
+    neg_dir = IMAGE_DIR / "Negative"
+    if pos_dir.is_dir():
+        cases.extend((p, 1) for p in list_images(pos_dir))
+    if neg_dir.is_dir():
+        cases.extend((p, 0) for p in list_images(neg_dir))
+    for path in list_images(IMAGE_DIR):
+        cases.append((path, None))
+    return cases
+
+
 def load_image_batch(path: Path) -> np.ndarray:
     """Carga una imagen como batch (1, 224, 224, 3) en [0, 255], igual que el pipeline."""
+    if path.stat().st_size == 0:
+        raise ValueError(f"archivo vacío (0 bytes): {path.name}")
     with Image.open(path) as img:
         rgb = img.convert("RGB").resize(IMAGE_SIZE, Image.Resampling.BILINEAR)
         array = np.asarray(rgb, dtype=np.float32)
@@ -109,9 +124,9 @@ def print_table(
 
 
 def _csv_fieldnames(model_keys: list[str]) -> list[str]:
-    fields = ["corrida", "archivo"]
+    fields = ["corrida", "archivo", "etiqueta_real"]
     for name in model_keys:
-        fields.extend([f"diagnostico_{name}", f"certeza_{name}", f"P_{name}"])
+        fields.extend([f"diagnostico_{name}", f"certeza_{name}", f"P_{name}", f"acierto_{name}"])
     fields.append("consenso")
     return fields
 
@@ -121,17 +136,25 @@ def _row_to_csv(
     model_keys: list[str],
     stamp: str,
 ) -> dict[str, object]:
+    y_true = row.get("y_true")
+    etiqueta = "Positive" if y_true == 1 else "Negative" if y_true == 0 else ""
     out: dict[str, object] = {
         "corrida": stamp,
         "archivo": row["archivo"],
+        "etiqueta_real": etiqueta,
         "consenso": row["consenso"],
     }
     for name in model_keys:
         prob = float(row[f"p_{name}"])
         label, conf = diagnose(prob)
+        pred = 1 if label == "FISURA" else 0
         out[f"diagnostico_{name}"] = label
         out[f"certeza_{name}"] = round(conf, 2)
         out[f"P_{name}"] = round(prob, 4)
+        if y_true in (0, 1):
+            out[f"acierto_{name}"] = int(pred == int(y_true))
+        else:
+            out[f"acierto_{name}"] = ""
     return out
 
 
@@ -166,27 +189,31 @@ def write_markdown(
     model_keys: list[str],
     display: dict[str, str],
     stamp: str,
+    metrics_md: str = "",
 ) -> None:
     """Anexa una sección `## Corrida <fecha>` al markdown; no borra corridas previas."""
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     headers = [display[k] for k in model_keys]
+    n_lab = sum(1 for r in rows if r.get("y_true") in (0, 1))
     section = [
         f"## Corrida {stamp}",
         "",
-        f"- Fotos evaluadas: **{len(rows)}**",
+        f"- Fotos evaluadas: **{len(rows)}** (etiquetadas OOD: {n_lab})",
         f"- Umbral de decisión: **{THRESHOLD:.2f}**",
         f"- `P` = probabilidad de fisura (Positive). Certeza = P si FISURA, 1−P si SANA.",
         "",
-        "| Archivo | " + " | ".join(headers) + " | Consenso |",
-        "| --- | " + " | ".join("---" for _ in headers) + " | --- |",
+        "| Archivo | Etiqueta | " + " | ".join(headers) + " | Consenso |",
+        "| --- | --- | " + " | ".join("---" for _ in headers) + " | --- |",
     ]
     for row in rows:
-        cells = [str(row["archivo"])]
+        y_true = row.get("y_true")
+        etiqueta = "Positive" if y_true == 1 else "Negative" if y_true == 0 else "—"
+        cells = [str(row["archivo"]), str(etiqueta)]
         for name in model_keys:
             cells.append(cell(float(row[f"p_{name}"])))
         cells.append(str(row["consenso"]))
         section.append("| " + " | ".join(cells) + " |")
-    section += ["", "---", ""]
+    section += ["", metrics_md, "---", ""]
     block = "\n".join(section)
 
     header = (
@@ -204,6 +231,39 @@ def write_markdown(
     MD_PATH.write_text(previous + "\n" + block, encoding="utf-8")
 
 
+def ood_metrics(rows: list[dict[str, object]], model_keys: list[str], display: dict[str, str]) -> str:
+    labeled = [r for r in rows if r.get("y_true") in (0, 1)]
+    if not labeled:
+        return ""
+    y_true = np.array([int(r["y_true"]) for r in labeled], dtype=int)
+    lines = [
+        "### Métricas OOD (solo fotos con etiqueta Positive/Negative)",
+        "",
+        f"n = {len(labeled)} (Positive={int(y_true.sum())}, Negative={int((1 - y_true).sum())})",
+        "",
+        "| Modelo | Accuracy | Precision | Recall | F1 |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+    print("\n--- Metricas OOD (fotos etiquetadas) ---")
+    for name in model_keys:
+        y_pred = np.array(
+            [1 if float(r[f"p_{name}"]) >= THRESHOLD else 0 for r in labeled],
+            dtype=int,
+        )
+        acc = accuracy_score(y_true, y_pred)
+        prec = precision_score(y_true, y_pred, zero_division=0)
+        rec = recall_score(y_true, y_pred, zero_division=0)
+        f1 = f1_score(y_true, y_pred, zero_division=0)
+        print(
+            f"  {display[name]:<22}  acc={acc:.3f}  prec={prec:.3f}  rec={rec:.3f}  F1={f1:.3f}"
+        )
+        lines.append(
+            f"| {display[name]} | {acc:.3f} | {prec:.3f} | {rec:.3f} | {f1:.3f} |"
+        )
+    lines += ["", ""]
+    return "\n".join(lines)
+
+
 def consensus(labels: list[str]) -> str:
     fisura = sum(1 for lab in labels if lab == "FISURA")
     n = len(labels)
@@ -218,29 +278,39 @@ def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-    images = list_images(IMAGE_DIR)
+    (IMAGE_DIR / "Positive").mkdir(exist_ok=True)
+    (IMAGE_DIR / "Negative").mkdir(exist_ok=True)
+    cases = collect_cases()
 
     print("=" * 72)
     print("  EVALUACION COMPARATIVA - casos reales (4 modelos)")
     print("=" * 72)
     print(f"Carpeta: {IMAGE_DIR}")
 
-    if not images:
-        print(f"\n[!] No hay imágenes en {IMAGE_DIR}/")
-        print("    Coloque fotos .jpeg/.jpg/.png y vuelva a ejecutar: python test_external.py")
+    if not cases:
+        print(f"\n[!] No hay imágenes en {IMAGE_DIR}/ ni en Positive/ Negative/")
+        print("    Positive = fisura, Negative = sana. Luego: python test_external.py")
         return
 
-    print(f"Fotos:   {len(images)}")
+    n_lab = sum(1 for _, y in cases if y is not None)
+    print(f"Fotos:   {len(cases)} (etiquetadas: {n_lab})")
     models = load_trained_models()
     model_keys = [name for name, _, _ in models]
     display = {name: display_name for name, display_name, _ in models}
 
     rows: list[dict[str, object]] = []
-    for path in images:
-        batch = load_image_batch(path)
-        row: dict[str, object] = {"archivo": path.name}
+    skipped: list[str] = []
+    for path, y_true in cases:
+        try:
+            batch = load_image_batch(path)
+        except (OSError, ValueError, UnidentifiedImageError) as exc:
+            skipped.append(path.name)
+            print(f"\n-> {path.name}")
+            print(f"   [omitida] no se puede leer ({exc})")
+            continue
+        row: dict[str, object] = {"archivo": path.name, "y_true": y_true}
         labels: list[str] = []
-        print(f"\n-> {path.name}")
+        print(f"\n-> {path.name}" + (f"  [y={'Positive' if y_true == 1 else 'Negative'}]" if y_true in (0, 1) else ""))
         for name, display_name, model in models:
             prob = float(model.predict(batch, verbose=0).reshape(-1)[0])
             row[f"p_{name}"] = prob
@@ -253,14 +323,22 @@ def main() -> None:
         print(f"   Consenso: {row['consenso']}")
         rows.append(row)
 
+    if not rows:
+        print("\n[!] Ninguna foto se pudo leer. Revise data/external_test/.")
+        return
+
     print("\n" + "=" * 72)
     print("  TABLA COMPARATIVA")
     print("=" * 72)
     print_table(rows, model_keys, display)
+    metrics_md = ood_metrics(rows, model_keys, display)
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     write_csv(rows, model_keys, stamp)
-    write_markdown(rows, model_keys, display, stamp)
+    write_markdown(rows, model_keys, display, stamp, metrics_md)
     print(f"\nCorrida anexada: {stamp}")
+    if skipped:
+        print(f"Omitidas ({len(skipped)}): {', '.join(skipped)}")
+        print("Si un .jpeg pesa 0 bytes, vuelva a copiar la foto original.")
     print(f"CSV: {CSV_PATH}")
     print(f"MD:  {MD_PATH}")
     print("=" * 72)

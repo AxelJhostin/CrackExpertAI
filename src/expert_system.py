@@ -184,6 +184,25 @@ def _parse_enum(enum_cls: type[Enum], value: str | Enum) -> Enum:
     raise ValueError(f"Valor no reconocido para {enum_cls.__name__}: {value!r}")
 
 
+def patron_from_geometry(elemento: str | ElementType, geometry: str) -> PatronOrientacion:
+    """Mapea orientación de la foto + tipo de elemento al patrón del motor experto."""
+    el = _parse_enum(ElementType, elemento)
+    key = (geometry or "").strip().lower()
+    if key in {"malla", "mesh"}:
+        return PatronOrientacion.MALLA
+    if key in {"inclinada", "diagonal", "45"}:
+        return PatronOrientacion.DIAGONAL_APOYOS
+    if key == "vertical":
+        if el == ElementType.COLUMNA:
+            return PatronOrientacion.VERTICAL_COLUMNA
+        return PatronOrientacion.VERTICAL_VANO
+    if key == "horizontal":
+        if el == ElementType.COLUMNA:
+            return PatronOrientacion.HORIZONTAL_COLUMNA
+        return PatronOrientacion.LONGITUDINAL_REFUERZO
+    return PatronOrientacion.VERTICAL_VANO
+
+
 def observation_from_form(
     ml_probability: float,
     *,

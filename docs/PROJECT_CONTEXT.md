@@ -47,12 +47,16 @@ Un SE de reglas codifica normas, pero **no procesa** una matriz de píxeles toma
 
 | Capa | Rol | Qué no hace |
 | --- | --- | --- |
-| **1. Percepción (ML / CNN)** | Digitaliza evidencia visual: \(P_{\mathrm{ML}}\) en milisegundos | No interpreta patología ni normas |
-| **2. Razonamiento (SE normativo)** | Reglas ACI/NEC + incertidumbre (CF estilo MYCIN) | No “ve” la imagen |
+| **1a. Percepción (CNN)** | \(P_{\mathrm{ML}}\): ¿hay fisura en la foto? | No interpreta patología ni normas |
+| **1b. Geometría (OpenCV)** | Orientación del trazo: vertical / horizontal / inclinada / malla | No distingue helicoidal; no mide mm |
+| **2. Razonamiento (SE normativo)** | Reglas ACI/NEC + CF estilo MYCIN | No “ve” la imagen |
+| **3. Bitácora local** | Visita de obra (lugar + hora) con N fotos | No es un sistema de gestión en la nube |
 
-**Contrato entre capas:** la CNN solo aporta \(P_{\mathrm{ML}}\). El experto combina \(P_{\mathrm{ML}}\) con variables de campo (elemento, ambiente, ancho mm, patrón/orientación) y emite diagnóstico, mecanismo, fundamento normativo, plan de acción y CF.
+**Contrato entre capas:** la CNN aporta \(P_{\mathrm{ML}}\). OpenCV aporta la **orientación** y se mapea a `patron_orientacion` según el tipo de elemento. El inspector solo declara lo que la foto de cerca **no puede saber**: elemento y **ambiente por foto** (una visita puede mezclar baño húmedo y fachada seca). El ancho mm queda fuera del flujo principal (evidencia incompleta en el SE). El experto emite severidad, mecanismo, fundamento, plan y CF.
 
-Cambiar una regla ACI **no** implica reentrenar. Cambiar el backbone **no** cambia \(w_{\max}\).
+Cambiar una regla ACI **no** implica reentrenar. Cambiar el backbone **no** cambia \(w_{\max}\). La geometría **no** exige un dataset etiquetado de orientaciones.
+
+**UI (criterio de producto, ago-2026):** lenguaje llano; sin selector de modelo a la vista; detalle técnico (CF, reglas, JSON) en expander. El usuario no rellena el patrón a mano salvo corrección.
 
 ---
 
@@ -75,8 +79,18 @@ Detalle normativo y reglas SI–ENTONCES: `docs/EXPERT_SYSTEM_SPEC.md`. Código:
 
 *Nota de implementación:* el código puede usar 0,15 mm (ACI 224R “seawater”) para marino y no exponer aún “retención de agua” en la UI. Alinear con esta tabla si la ingeniera pide el brief al pie de la letra.
 
-4. **Ancho** \(w\) (mm), opcional; si falta, evidencia incompleta.  
-5. **`patron_orientacion`:**
+4. **Ancho** \(w\) (mm), opcional; si falta, evidencia incompleta. En la app de campo **no se pide**; el motor usa `ancho_mm=None`.  
+5. **`patron_orientacion`:** en campo lo **infiere** `src/crack_geometry.py` + `patron_from_geometry(elemento, clase)`. El inspector puede corregirlo en el expander. Mapeo:
+
+- Inclinada → Diagonal (~45° en apoyos)  
+- Vertical + columna → Vertical paralela al eje  
+- Vertical + viga/losa/muro → Vertical / perpendicular (vano)  
+- Horizontal + columna → Horizontal transversal  
+- Horizontal + otros → Longitudinal paralela al refuerzo  
+- Malla → Malla / piel de cocodrilo  
+- Helicoidal: no se infiere en 2D  
+
+Tabla de mecanismos (motor, sin cambio de reglas):
 
 | Patrón (interfaz) | Mecanismo | Severidad típica |
 | --- | --- | --- |
@@ -113,11 +127,12 @@ Detalle normativo y reglas SI–ENTONCES: `docs/EXPERT_SYSTEM_SPEC.md`. Código:
 
 ## 5. Stack y estructura del repo
 
-Python 3.10+, TensorFlow/Keras, NumPy, scikit-learn, Matplotlib, Pillow, Streamlit, kagglehub. (El brief menciona OpenCV/Pandas; el pipeline actual usa Pillow + `csv`.)
+Python 3.10+, TensorFlow/Keras, NumPy, OpenCV (headless), scikit-learn, Matplotlib, Pillow, Pandas, Streamlit, kagglehub.
 
 ```text
 crackexpert-ai/
 ├── data/raw, data/processed, data/external_test
+├── data/inspections/       # visitas locales (JSON + JPG; no se versionan)
 ├── models/                 # *.keras (no se versionan pesos grandes)
 ├── reports/
 │   ├── figures/            # corrida vigente
@@ -126,9 +141,11 @@ crackexpert-ai/
 │   ├── experiments_log.md
 │   ├── external_test_comparison.csv / .md
 │   └── TRAINING_RESULTS.md
-├── src/   data_loader, models, train, evaluate, expert_system, archive
+├── src/   data_loader, models, train, evaluate, expert_system,
+│          crack_geometry, inspections, archive
 ├── docs/  EXPERT_SYSTEM_SPEC.md, PROJECT_CONTEXT.md (este archivo)
-├── app.py, main.py, test_external.py, README.md
+├── .streamlit/config.toml  # LAN: 0.0.0.0:8501, CORS/XSRF off
+├── app.py, run_app.py, main.py, test_external.py, README.md
 ```
 
 Comandos:
@@ -136,7 +153,8 @@ Comandos:
 ```bash
 python main.py              # datos 8k → 4 modelos → métricas → OOD
 python test_external.py     # solo fotos reales (anexa corrida)
-streamlit run app.py        # CNN + sistema experto
+python run_app.py           # Streamlit en LAN (IP + puerto; libera 8501 si quedó colgado)
+streamlit run app.py        # mismo prototipo, solo localhost
 ```
 
 ---
@@ -188,8 +206,19 @@ Anexos (código, arquitectura).
 | Entrenamiento 8k | En curso / por confirmar al terminar `python main.py` |
 | `test_external.py` comparativo + anexar corridas | Hecho |
 | Motor experto + `patron_orientacion` + MYCIN | Hecho |
-| `app.py` Streamlit | Hecho (probar y capturar evidencias) |
+| Orientación OpenCV (`src/crack_geometry.py`) + mapeo al SE | Hecho |
+| App flujo simple (foto + elemento + ambiente por foto) | Hecho |
+| Acceso LAN / celular (`run_app.py`, config Streamlit) | Hecho (firewall Windows a veces pide admin; WiFi de campus puede aislar clientes) |
+| Bitácora de visitas `data/inspections/` (`src/inspections.py`) | Hecho |
+| Capturas móvil + evidencias para informe §8 | Pendiente (probar en obra/casa) |
 | Informe §4–9 con métricas 8k | **Siguiente entregable de redacción** |
+
+**Prototipo de campo (cómo se usa)**
+
+1. Abrir o crear **visita** (nombre del lugar; la hora la pone el sistema).  
+2. Cada foto: imagen + elemento + ambiente de **esa** foto.  
+3. Guardar: CNN + geometría + SE; queda JPG + `visit.json`.  
+4. Resumen de la visita (conteo por severidad). Reabrir visitas anteriores en el mismo PC.
 
 **Cuando termine la corrida 8k**
 
@@ -211,4 +240,4 @@ Anexos (código, arquitectura).
 
 ---
 
-*Última consolidación de contexto: 16 de agosto de 2026. Actualizar la sección 8 cuando cierre la corrida de 8.000 imágenes.*
+*Última consolidación de contexto: 16 de agosto de 2026 (noche): flujo de inspección simple, geometría OpenCV, visitas locales. Actualizar la sección 8 cuando cierre la corrida de 8.000 imágenes y cuando haya capturas de la app en celular.*

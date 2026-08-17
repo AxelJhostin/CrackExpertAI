@@ -98,7 +98,9 @@ Flujo textual equivalente:
 crackexpert-ai/
 ├── data/
 │   ├── raw/                      # Puntero/cache del dataset Kaggle (no versionado)
-│   └── processed/                # Subconjunto 4.000 imgs: train / val / test
+│   ├── processed/                # Subconjunto de entrenamiento
+│   ├── external_test/            # Fotos reales OOD
+│   └── inspections/              # Visitas de obra locales (JSON + JPG; no versionado)
 ├── models/                       # Pesos .keras de las cuatro arquitecturas
 ├── reports/
 │   ├── figures/                  # Curvas, matrices, ROC, errores
@@ -106,29 +108,36 @@ crackexpert-ai/
 │   ├── experiments_log.md        # Bitácora de corridas
 │   └── TRAINING_RESULTS.md       # Informe acumulativo de entrenamientos
 ├── src/
-│   ├── __init__.py
-│   ├── data_loader.py            # kagglehub, muestreo 4k, splits, tf.data
+│   ├── data_loader.py            # kagglehub, muestreo, splits, tf.data
 │   ├── models.py                 # Fábrica de las 4 arquitecturas
 │   ├── train.py                  # Dos fases, EarlyStopping, checkpoints
 │   ├── evaluate.py               # Figuras, CSV y bitácora
-│   └── expert_system.py          # Motor de reglas patológicas + CF
+│   ├── expert_system.py          # Motor de reglas patológicas + CF
+│   ├── crack_geometry.py         # Orientación de la fisura (OpenCV)
+│   └── inspections.py            # Bitácora local de visitas
 ├── docs/
-│   └── EXPERT_SYSTEM_SPEC.md     # Especificación formal del sistema experto
+│   ├── EXPERT_SYSTEM_SPEC.md     # Especificación formal del sistema experto
+│   └── PROJECT_CONTEXT.md        # Memoria del proyecto (estado y decisiones)
+├── .streamlit/config.toml        # Servidor LAN (0.0.0.0:8501)
 ├── main.py                       # Orquestador: datos → train → evaluate
-├── app.py                        # Interfaz interactiva Streamlit
+├── app.py                        # Prototipo Streamlit (visita + fotos)
+├── run_app.py                    # Arranque para celular / LAN
 ├── requirements.txt
 └── README.md
 ```
 
 | Módulo | Rol |
 | --- | --- |
-| `src/data_loader.py` | Descarga `arunrk7/surface-crack-detection`, submuestrea 2.000+2.000, parte con `random_state=42` y construye `tf.data` (augmentation solo en train). |
+| `src/data_loader.py` | Descarga `arunrk7/surface-crack-detection`, submuestrea, parte con `random_state=42` y construye `tf.data` (augmentation solo en train). |
 | `src/models.py` | Define CNN Custom, MobileNetV2, ResNet50V2 y EfficientNet-B0; preprocesado ImageNet serializable. |
 | `src/train.py` | Fase 1 (LR \(10^{-3}\), backbone congelado) y Fase 2 (LR \(10^{-5}\), fine-tuning); EarlyStopping `patience=5`. |
-| `src/evaluate.py` | Test independiente \(n=600\): accuracy, precision, recall, F1, ROC-AUC, latencia y figuras. |
+| `src/evaluate.py` | Test independiente: accuracy, precision, recall, F1, ROC-AUC, latencia y figuras. |
 | `src/expert_system.py` | Encadenamiento hacia adelante sobre ACI/NEC y combinación de factores de certeza. |
+| `src/crack_geometry.py` | Estima si el trazo es vertical, horizontal, inclinado o malla (sin reentrenar la CNN). |
+| `src/inspections.py` | Guarda visitas (lugar + hora) y fotos con dictamen en `data/inspections/`. |
 | `main.py` | Reproduce el experimento completo en un solo comando. |
-| `app.py` | Captura imagen + variables de dominio y muestra diagnóstico y plan de acción. |
+| `app.py` | Visita de obra: foto + elemento + ambiente por foto; dictamen llano. |
+| `run_app.py` | Publica Streamlit en la red local e intenta liberar el puerto 8501. |
 
 ---
 
@@ -236,11 +245,28 @@ Salidas esperadas:
 
 ### 6.3. Interfaz interactiva
 
+En este PC:
+
 ```bash
 streamlit run app.py
 ```
 
-La aplicación permite cargar una imagen, registrar ancho estimado, tipo de elemento y ambiente de exposición, y visualizar \(P(\text{fisura})\), severidad, CF combinado y el plan de mitigación.
+**Desde el celular (misma WiFi):** no use `localhost`. Arranque así para publicar en la LAN, intentar abrir el firewall y mostrar la IP:
+
+```bash
+python run_app.py
+```
+
+Abra en el teléfono `http://<IP-que-imprime-el-script>:8501`. Si la página no carga, permita TCP 8501 en el firewall de Windows (el script lo indica) o use un hotspot del portátil (muchas WiFi de campus aíslan los clientes). En HTTP, en el celular use **Examinar → Cámara / Tomar foto** (la cámara en vivo del navegador exige HTTPS).
+
+**Uso en campo (visita de obra)**
+
+1. Escriba el nombre del lugar y pulse **Empezar visita** (o reabra una visita anterior).  
+2. Por cada foto: imagen + tipo de elemento + **ambiente de esa foto** (baño húmedo y fachada seca pueden ir en la misma visita).  
+3. **Guardar en la visita:** la CNN detecta fisura; OpenCV estima la orientación; el sistema experto emite un dictamen en lenguaje llano.  
+4. El registro queda en este PC: `data/inspections/<visita>/visit.json` y fotos JPG. El detalle técnico (CF, reglas, JSON) está en un expander.
+
+Memoria de decisiones y estado del repo: [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md).
 
 ---
 
@@ -253,9 +279,10 @@ Detalle normativo, reglas SI–ENTONCES y fórmulas MYCIN: [`docs/EXPERT_SYSTEM_
 | Variable | Dominio | Origen |
 | --- | --- | --- |
 | Probabilidad de fisura \(P\) | \([0, 1]\) | Salida `sigmoid` de la CNN |
-| Ancho de fisura \(w\) | mm (SI), opcional | Medición de campo (fisurómetro) o estimación asistida |
-| Tipo de elemento | Viga, Columna, Losa, Muro | Inspector |
-| Ambiente de exposición | Interior seco; Exterior húmedo; Marino / agresivo | Inspector (mapeo a ACI 224R Tabla 4.1) |
+| Orientación del trazo | vertical, horizontal, inclinada, malla | OpenCV sobre la foto; se mapea a `patron_orientacion` |
+| Ancho de fisura \(w\) | mm (SI), opcional | Fuera del flujo de campo; si falta, evidencia incompleta |
+| Tipo de elemento | Viga, Columna, Losa, Muro | Inspector (por foto) |
+| Ambiente de exposición | Interior seco; Exterior húmedo; Marino / agresivo | Inspector **por foto** (una visita puede mezclar ambientes) |
 
 ### 7.2. Variables de salida
 
@@ -284,7 +311,9 @@ Valores adicionales de la misma tabla (sales de deshielo 0,18 mm; depósitos 0,1
 ## 8. Alcance y limitaciones
 
 - El dataset público caracteriza **presencia/ausencia** de fisura superficial, no el mecanismo estructural ni el ancho real en milímetros.
+- La orientación OpenCV es una estimación 2D en el plano de la foto; no sustituye el criterio del inspector si la toma está sesgada.
 - El dictamen experto es un **apoyo a la decisión** y no un certificado de estabilidad.
+- Las visitas se guardan solo en el equipo (`data/inspections/`); no hay nube ni multi-usuario.
 - La latencia y el tamaño de modelo se reportan para comparación académica; el despliegue en obra puede exigir cuantización u hardware específico.
 
 ## 9. Licencia y uso académico

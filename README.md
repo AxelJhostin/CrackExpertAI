@@ -19,11 +19,11 @@ Base de conocimiento del experto: [`docs/EXPERT_SYSTEM_SPEC.md`](docs/EXPERT_SYS
 | Frente | Qué hay |
 | --- | --- |
 | **ML — corrida 4.000 imgs** | Completa. Test retenido \(n=600\): F1 ≈ 1,0 en tres modelos; CNN custom elegida por empate en F1 y menor latencia (~6,4 ms, 1,3 MB). Figuras y CSV en `reports/` y snapshot en `reports/archive/2026-08-16_083631/`. |
-| **ML — 8.000 imgs** | Código listo (4.000/4.000, split 5.600 / 1.200 / 1.200, `seed=42`). Entrenamiento se lanza con `python main.py` (antes archiva la corrida previa). |
+| **ML — 8.000 imgs** | Código listo (4.000/4.000, split 5.600 / 1.200 / 1.200, `seed=42`). Pendiente de noche: `python main.py` (archiva la corrida 4k y no reanuda épocas si se corta). |
 | **OOD (fotos de casa / celular)** | 71 fotos etiquetadas (24 Positive / 47 Negative). En Kaggle saturan; en campo **no**. Mejor F1 OOD: CNN custom **0,42** (recall 0,71). ResNet/EfficientNet caen fuerte. Tabla: `reports/external_test_comparison.md`. |
-| **Sistema experto** | Reglas ACI 224R / ACI 318 / NEC-SE-HM + CF MYCIN. Patrón de fisura: selector o inferencia OpenCV. |
-| **Prototipo** | `app.py` / `python run_app.py`: visita de obra, CNN + geometría + dictamen. |
-| **Informe** | Caps. 1–3 redactados. Caps. 4–9: redacción con 4k + OOD; el delta 8k se incorpora cuando termine esa corrida. |
+| **Sistema experto** | ACI 224R / ACI 318 / NEC-SE-HM + CF MYCIN. Patrón (OpenCV) + **9 preguntas de campo**; «No lo sé» no inventa evidencia. Dictamen llano (titular + qué hacer) según esas respuestas. |
+| **Prototipo** | `app.py` / `python run_app.py`: visita → foto + elemento + ambiente → CNN; si hay fisura, **cartas apiladas** (Sí / No / No lo sé) → dictamen. Bitácora en `data/inspections/`. |
+| **Informe** | Caps. 1–3 y 8 (capturas) en el Word. Caps. 4–7 y 9: tras la corrida 8k; guía `docs/INFORME_CONTINUACION.md`. Si el 8k no cierra, se puede redactar con 4k + OOD. |
 
 **Lectura para la defensa:** un F1 de 1,0 en Kaggle no cierra el problema. El aporte experimental es el *domain shift* (benchmark vs celular) y la integración CNN → sistema experto.
 
@@ -39,18 +39,20 @@ Una CNN solo responde *¿hay una grieta en la foto?* (\(P_{\mathrm{ML}}\)). Un s
 | --- | --- |
 | Percepción (4 CNN) | \(P(\text{fisura} \mid \text{imagen})\) |
 | Geometría (OpenCV) | Orientación del trazo (vertical / horizontal / inclinada / malla) |
-| Razonamiento (SE) | Elemento, ambiente, ancho opcional, patrón → severidad, mecanismo, plan, CF MYCIN |
+| Razonamiento (SE) | Elemento, ambiente, patrón, 9 observaciones de campo → severidad, titular, plan, CF MYCIN |
 
 El dictamen **no sustituye** un peritaje estructural.
 
 ```text
 Foto → 224×224 RGB → CNN → P(fisura)
                          +
-              elemento, ambiente, (ancho), patrón
+         elemento, ambiente, patrón (OpenCV)
+                         +
+         9 cartas de campo (si P ≥ 0,50)
                          ↓
               Motor experto ACI/NEC + MYCIN
                          ↓
-         Severidad | Mecanismo | Plan de acción | CF
+     Severidad | Titular llano | Qué hacer | CF
 ```
 
 ---
@@ -80,7 +82,7 @@ crackexpert-ai/
 │   ├── train.py             # 2 fases, EarlyStopping, checkpoints
 │   ├── evaluate.py          # Curvas, matrices, ROC, CSV, bitácora
 │   ├── archive.py           # Copia figures/CSV antes de pisarlos
-│   ├── expert_system.py     # Reglas + MYCIN
+│   ├── expert_system.py     # Reglas + MYCIN + 9 preguntas de campo
 │   ├── crack_geometry.py    # Orientación OpenCV
 │   └── inspections.py       # Bitácora de visitas
 ├── docs/
@@ -103,7 +105,7 @@ crackexpert-ai/
 | Protocolo | Total | Train (70 %) | Val (15 %) | Test (15 %) | Estado |
 | --- | ---: | ---: | ---: | ---: | --- |
 | Corrida 1 | 4.000 (2k/2k) | 2.800 | 600 | 600 | **Hecha** |
-| Corrida 2 | 8.000 (4k/4k) | 5.600 | 1.200 | 1.200 | Código listo; entrenar con `main.py` |
+| Corrida 2 | 8.000 (4k/4k) | 5.600 | 1.200 | 1.200 | Lanzar `python main.py`; no reanuda si se interrumpe |
 
 Semilla fija `random_state=42`. Augmentation **solo train** (Flip, Rotation 0,1, Zoom 0,1, Brightness 0,1). Val y test: resize 224×224 RGB, sin aumento.
 
@@ -168,17 +170,21 @@ Fotos OOD: JPEG en `Positive/` (fisura) y `Negative/` (sana o trampa: junta, man
 
 ---
 
-## 6. Sistema experto (resumen)
+## 6. Sistema experto y prototipo de campo
 
 | Entrada | Origen |
 | --- | --- |
 | \(P_{\mathrm{ML}}\) | CNN |
-| Patrón / orientación | OpenCV o inspector |
+| Patrón / orientación | OpenCV; el inspector puede corregirlo; «varias en red» fuerza malla |
 | Elemento | Viga, columna, losa, muro |
-| Ambiente | Interior seco (\(w_{\max}=0{,}41\) mm), exterior húmedo (0,30), marino (0,15 en código / 0,18 en brief) |
-| Ancho mm | Opcional; en campo suele omitirse |
+| Ambiente | Interior seco (\(w_{\max}=0{,}41\) mm), exterior húmedo (0,30), marino (0,15 en código) |
+| 9 cartas | Ubicación, una/malla, humedad, óxido/desprendimiento, antigüedad, temblor, carga arriba, si crece, si es pasante |
 
-Salidas: Leve / Moderada / Crítica, mecanismo (cortante, flexión, torsión, corrosión, retracción, etc.), cita normativa, plan de acción, \(\mathrm{CF}_{\mathrm{comb}}\).
+«No lo sé» **no dispara** la regla. Si la CNN no ve fisura, no se preguntan las 9.
+
+**Flujo en la app:** visita (lugar) → foto (queda en sesión al elegirla; JPG/PNG en celular) → elemento y ambiente → Generar dictamen → cartas apiladas si hay fisura → titular + qué hacer + bitácora.
+
+Salidas: Leve / Moderada / Crítica, texto llano según las respuestas, plan de acción, mecanismo técnico, cita normativa, \(\mathrm{CF}_{\mathrm{comb}}\).
 
 ---
 
@@ -188,7 +194,8 @@ Salidas: Leve / Moderada / Crítica, mecanismo (cortante, flexión, torsión, co
 - F1 ≈ 1,0 en ese dominio no implica generalización a celular.  
 - OpenCV estima orientación 2D; no detecta helicoidal.  
 - El SE es **alerta de protocolo**, no certificado de estabilidad.  
-- Las visitas viven solo en este PC (`data/inspections/`).
+- Las visitas viven solo en este PC (`data/inspections/`).  
+- Fotos HEIC de iPhone pueden no abrirse; usar JPG o PNG.
 
 ## 8. Uso académico
 

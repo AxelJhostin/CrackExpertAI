@@ -191,7 +191,9 @@ El informe de titulación (secciones 1–10) es el vehículo; la rúbrica es el 
 10. Referencias (ACI/NEC, ML, SE).  
 Anexos (código, arquitectura).
 
-**Estado del informe (según el equipo):** secciones **1, 2 y 3 redactadas**. Pendiente vaciar **4, 5, 6, 7 y 9** con números/curvas de la corrida **8k**, y **8** con evidencias de Streamlit.
+**Estado del informe:** secciones **1, 2 y 3** ya redactadas por el equipo. Pendiente **4–9** en un chat nuevo de redacción.  
+**Números vigentes para redactar YA (no esperar 8k):** corrida 4k + OOD 2026-08-16 19:08 (n=71).  
+**8k:** se lanza de noche (`python main.py`); si sale ~1.0 otra vez, la conclusión es saturación de dominio, no fracaso. Luego se actualizan §4–5 con el delta 4k vs 8k.
 
 ---
 
@@ -203,7 +205,9 @@ Anexos (código, arquitectura).
 | Corrida 4k + informe en `TRAINING_RESULTS.md` | Hecho |
 | Ampliación a 8k en `data_loader` | Hecho (código) |
 | Archivo automático de figuras previas | Hecho (`src/archive.py`) |
-| Entrenamiento 8k | En curso / por confirmar al terminar `python main.py` |
+| Entrenamiento 8k | Pendiente de noche (`python main.py`); no bloquea redactar §4–7 con 4k+OOD |
+| OOD etiquetado 16-ago 19:08 | **Hecho:** 24 Positive + 47 Negative. F1: CNN 0.420 · MobileNet 0.294 · ResNet 0.140 · EfficientNet 0.121. Recall CNN 0.708. Contraste con Kaggle F1≈1.0 |
+| Informe §4–9 | **Siguiente chat:** redacción alineada a rúbrica y sílabo |
 | `test_external.py` comparativo + anexar corridas | Hecho |
 | Motor experto + `patron_orientacion` + MYCIN | Hecho |
 | Orientación OpenCV (`src/crack_geometry.py`) + mapeo al SE | Hecho |
@@ -219,6 +223,17 @@ Anexos (código, arquitectura).
 2. Cada foto: imagen + elemento + ambiente de **esa** foto.  
 3. Guardar: CNN + geometría + SE; queda JPG + `visit.json`.  
 4. Resumen de la visita (conteo por severidad). Reabrir visitas anteriores en el mismo PC.
+
+**Números OOD a citar (no inventar otros):**
+
+| Modelo | Acc | Prec | Rec | F1 OOD |
+| --- | ---: | ---: | ---: | ---: |
+| CNN personalizada | 0.338 | 0.298 | 0.708 | 0.420 |
+| MobileNetV2 | 0.324 | 0.227 | 0.417 | 0.294 |
+| ResNet50V2 | 0.310 | 0.121 | 0.167 | 0.140 |
+| EfficientNet-B0 | 0.183 | 0.095 | 0.167 | 0.121 |
+
+Fuente: `reports/external_test_comparison.md` corrida `2026-08-16 19:08:31`. Accuracy OOD es engañosa (desbalance 24/47); defender **F1 y recall** y el *domain shift*.
 
 **Cuando termine la corrida 8k**
 

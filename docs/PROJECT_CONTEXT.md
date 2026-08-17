@@ -15,7 +15,7 @@
 
 Pegar o adjuntar este archivo y decir:
 
-> Lee `docs/PROJECT_CONTEXT.md`. Es el norte de CrackExpert AI (híbrido CNN + SE, rúbrica de la ingeniera, estado del repo). No reinventes el alcance. El siguiente entregable pendiente está en la sección 8.
+> Lee `docs/PROJECT_CONTEXT.md`. Es el norte de CrackExpert AI (híbrido CNN + SE, rúbrica de la ingeniera, estado del repo). No reinventes el alcance. El siguiente entregable pendiente está en la sección 8. Para el informe tras la corrida 8k: `docs/INFORME_CONTINUACION.md`.
 
 ---
 
@@ -191,9 +191,9 @@ El informe de titulación (secciones 1–10) es el vehículo; la rúbrica es el 
 10. Referencias (ACI/NEC, ML, SE).  
 Anexos (código, arquitectura).
 
-**Estado del informe:** secciones **1, 2 y 3** ya redactadas por el equipo. Pendiente **4–9** en un chat nuevo de redacción.  
-**Números vigentes para redactar YA (no esperar 8k):** corrida 4k + OOD 2026-08-16 19:08 (n=71).  
-**8k:** se lanza de noche (`python main.py`); si sale ~1.0 otra vez, la conclusión es saturación de dominio, no fracaso. Luego se actualizan §4–5 con el delta 4k vs 8k.
+**Estado del informe (16 ago noche):** §1–3 y §8 (con capturas) en el Word. §4–7 y §9 se llenan **después** de la corrida 8k. Checklist: [`INFORME_CONTINUACION.md`](INFORME_CONTINUACION.md).  
+**Piloto 4k + OOD 19:08 (n=71):** solo para delta / no vender como tabla oficial de titulación.  
+**8k:** `python main.py`; si F1 Kaggle ~1.0 otra vez → saturación de dominio, no fracaso.
 
 ---
 
@@ -214,8 +214,8 @@ Anexos (código, arquitectura).
 | App flujo simple (foto + elemento + ambiente por foto) | Hecho |
 | Acceso LAN / celular (`run_app.py`, config Streamlit) | Hecho (firewall Windows a veces pide admin; WiFi de campus puede aislar clientes) |
 | Bitácora de visitas `data/inspections/` (`src/inspections.py`) | Hecho |
-| Capturas móvil + evidencias para informe §8 | Pendiente (probar en obra/casa) |
-| Informe §4–9 con métricas 8k | **Siguiente entregable de redacción** |
+| Capturas móvil + evidencias para informe §8 | Hecho (en el Word, 16 ago noche) |
+| Informe §4–7 y §9 con métricas 8k | **Mañana:** ver `docs/INFORME_CONTINUACION.md` |
 
 **Prototipo de campo (cómo se usa)**
 

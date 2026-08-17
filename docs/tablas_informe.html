@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Tablas informe — 2.6 y 3.4.2</title>
+  <style>
+    body { font-family: "Times New Roman", Times, serif; font-size: 12pt; margin: 2rem; color: #000; }
+    h2 { font-size: 14pt; margin-top: 2rem; }
+    p { max-width: 50rem; }
+    table { border-collapse: collapse; margin: 1rem 0 2rem; }
+    th, td { border: 1px solid #000; padding: 6px 10px; vertical-align: top; }
+    th { background: #f0f0f0; font-weight: bold; text-align: center; }
+    td.num { text-align: center; }
+    caption { caption-side: top; font-weight: bold; text-align: left; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+  <p>Selecciona una tabla completa (incluido el encabezado) → Ctrl+C → en Word: Ctrl+V. Si se pega como texto, en Word: Insertar → Tabla → Convertir texto en tabla, separador tabulaciones.</p>
+
+  <h2>Tabla 2.6 — Partición estratificada (8.000 imágenes)</h2>
+  <table>
+    <caption>Partición 70 / 15 / 15, random_state = 42, balance 50 % / 50 %.</caption>
+    <thead>
+      <tr>
+        <th>Conjunto</th>
+        <th>Proporción</th>
+        <th>Muestras</th>
+        <th>Positive (fisura)</th>
+        <th>Negative (sano)</th>
+        <th>Rol metodológico</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Entrenamiento (Train)</td>
+        <td class="num">70 %</td>
+        <td class="num">5.600</td>
+        <td class="num">2.800</td>
+        <td class="num">2.800</td>
+        <td>Ajuste de pesos; con aumento de datos</td>
+      </tr>
+      <tr>
+        <td>Validación (Val)</td>
+        <td class="num">15 %</td>
+        <td class="num">1.200</td>
+        <td class="num">600</td>
+        <td class="num">600</td>
+        <td>EarlyStopping y monitoreo de val_loss</td>
+      </tr>
+      <tr>
+        <td>Prueba retenida (Test)</td>
+        <td class="num">15 %</td>
+        <td class="num">1.200</td>
+        <td class="num">600</td>
+        <td class="num">600</td>
+        <td>Evaluación ciega del modelo congelado (sección 5)</td>
+      </tr>
+      <tr>
+        <td><strong>Total</strong></td>
+        <td class="num"><strong>100 %</strong></td>
+        <td class="num"><strong>8.000</strong></td>
+        <td class="num"><strong>4.000</strong></td>
+        <td class="num"><strong>4.000</strong></td>
+        <td>Corpus experimental de titulación</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Tabla 3.4.2 — Orientación, patrón y mecanismo</h2>
+  <table>
+    <caption>Mapeo de la orientación inferida (OpenCV) al patrón del sistema experto según el tipo de elemento.</caption>
+    <thead>
+      <tr>
+        <th>Orientación inferida</th>
+        <th>Elemento</th>
+        <th>Patrón de interfaz</th>
+        <th>Mecanismo probable</th>
+        <th>Severidad típica</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Inclinada</td>
+        <td>Cualquiera</td>
+        <td>Diagonal (~45° en apoyos)</td>
+        <td>Cortante / tensión diagonal</td>
+        <td>Crítica</td>
+      </tr>
+      <tr>
+        <td>Vertical</td>
+        <td>Columna</td>
+        <td>Vertical paralela al eje</td>
+        <td>Compresión / aplastamiento</td>
+        <td>Moderada a crítica</td>
+      </tr>
+      <tr>
+        <td>Vertical</td>
+        <td>Viga, losa o muro</td>
+        <td>Vertical / perpendicular (vano)</td>
+        <td>Flexión</td>
+        <td>Según w frente a w_max, si hay medición</td>
+      </tr>
+      <tr>
+        <td>Horizontal</td>
+        <td>Columna</td>
+        <td>Horizontal transversal</td>
+        <td>Flexo-tracción sísmica / viento</td>
+        <td>Crítica</td>
+      </tr>
+      <tr>
+        <td>Horizontal</td>
+        <td>Viga, losa o muro</td>
+        <td>Longitudinal paralela al refuerzo</td>
+        <td>Corrosión / despasivación</td>
+        <td>Moderada a crítica</td>
+      </tr>
+      <tr>
+        <td>Malla</td>
+        <td>Cualquiera</td>
+        <td>Malla / piel de cocodrilo</td>
+        <td>Retracción / curado deficiente</td>
+        <td>Leve a moderada</td>
+      </tr>
+      <tr>
+        <td>Helicoidal</td>
+        <td>—</td>
+        <td>No se infiere en 2D</td>
+        <td>Torsión (solo si el inspector lo declara)</td>
+        <td>Crítica</td>
+      </tr>
+    </tbody>
+  </table>
+</body>
+</html>
